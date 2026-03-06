@@ -1,0 +1,75 @@
+version: "3.9"
+
+services:
+  portfolio-service:
+    build: ./portfolio-service
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  scoring-engine:
+    build: ./scoring-engine
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  simulation-service:
+    build: ./simulation-service
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - SCORING_ENGINE_URL=http://scoring-engine:8002
+    depends_on:
+      - scoring-engine
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  adviser-service:
+    build: ./adviser-service
+    ports:
+      - "8004:8004"
+    environment:
+      - PORT=8004
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - PORTFOLIO_SERVICE_URL=http://portfolio-service:8001
+      - SCORING_ENGINE_URL=http://scoring-engine:8002
+      - SIMULATION_SERVICE_URL=http://simulation-service:8003
+      - ADVISER_SERVICE_URL=http://adviser-service:8004
+    depends_on:
+      - portfolio-service
+      - scoring-engine
+      - simulation-service
+      - adviser-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

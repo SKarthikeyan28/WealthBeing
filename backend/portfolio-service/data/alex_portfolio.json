@@ -1,0 +1,96 @@
+{
+  "patient": { "name": "Alex Johnson", "age": 32, "location": "Singapore" },
+  "net_worth": 342000,
+  "net_worth_history": [
+    { "month": "Aug 2024", "value": 298000 },
+    { "month": "Sep 2024", "value": 305000 },
+    { "month": "Oct 2024", "value": 310000 },
+    { "month": "Nov 2024", "value": 316000 },
+    { "month": "Dec 2024", "value": 320000 },
+    { "month": "Jan 2025", "value": 331000 },
+    { "month": "Feb 2025", "value": 342000 }
+  ],
+  "assets": {
+    "equities": {
+      "total": 145000,
+      "holdings": [
+        { "ticker": "NVDA",  "name": "NVIDIA Corp",        "value": 55100, "pct_of_equity": 0.38 },
+        { "ticker": "VOO",   "name": "Vanguard S&P 500",   "value": 40000, "pct_of_equity": 0.28 },
+        { "ticker": "AAPL",  "name": "Apple Inc",          "value": 22000, "pct_of_equity": 0.15 },
+        { "ticker": "QQQ",   "name": "Invesco NASDAQ-100", "value": 15000, "pct_of_equity": 0.10 },
+        { "ticker": "TSLA",  "name": "Tesla Inc",          "value": 12900, "pct_of_equity": 0.09 }
+      ]
+    },
+    "cpf": { "ordinary_account": 68000, "special_account": 31000, "medisave": 18000 },
+    "cash": { "emergency_fund": 25200, "savings_account": 14800 },
+    "crypto": {
+      "total": 18000,
+      "holdings": [
+        { "coin": "BTC", "value": 12000 },
+        { "coin": "ETH", "value": 6000 }
+      ]
+    },
+    "real_estate": {
+      "type": "HDB",
+      "current_value": 580000,
+      "outstanding_loan": 410000,
+      "equity": 170000
+    },
+    "bonds": {
+      "total": 12000,
+      "holdings": [
+        { "name": "Singapore Savings Bonds", "value": 12000 }
+      ]
+    }
+  },
+  "liabilities": {
+    "hdb_mortgage": {
+      "outstanding": 410000,
+      "monthly_payment": 1800,
+      "rate": 0.026,
+      "years_remaining": 22
+    },
+    "credit_card": {
+      "outstanding": 2400,
+      "limit": 15000
+    }
+  },
+  "cashflow": {
+    "monthly_income": 8500,
+    "monthly_expenses": {
+      "housing": 1800,
+      "food": 800,
+      "transport": 300,
+      "insurance": 350,
+      "entertainment": 400,
+      "utilities": 150,
+      "other": 300
+    },
+    "monthly_savings": 1870,
+    "savings_rate": 0.22
+  },
+  "transactions": [
+    { "date": "2025-03-15", "type": "panic_sell",   "ticker": "NVDA", "value": 8000, "reactive": true,  "note": "Sold during tariff news" },
+    { "date": "2024-11-02", "type": "buy",           "ticker": "VOO",  "value": 5000, "reactive": false, "note": "Scheduled DCA" },
+    { "date": "2024-09-18", "type": "reactive_buy",  "ticker": "TSLA", "value": 3000, "reactive": true,  "note": "Bought on hype" }
+  ],
+  "goals": [
+    { "id": "g1", "name": "Emergency Fund Top-Up", "target": 36000,  "current": 25200,  "deadline": "2025-12-31" },
+    { "id": "g2", "name": "Japan Holiday",          "target": 8000,   "current": 3200,   "deadline": "2025-09-01" },
+    { "id": "g3", "name": "Early Retirement Fund",  "target": 800000, "current": 342000, "deadline": "2043-01-01" }
+  ],
+  "scoring_inputs": {
+    "asset_class_allocations": {
+      "equities":    0.424,
+      "cpf":         0.343,
+      "real_estate": 0.497,
+      "cash":        0.117,
+      "crypto":      0.053,
+      "bonds":       0.035
+    },
+    "top_holding_pct": 0.38,
+    "expected_annual_return": 0.087,
+    "portfolio_volatility": 0.142,
+    "yoy_net_worth_growth": 0.148
+  }
+}
