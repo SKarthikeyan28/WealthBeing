@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { wwsColour, HEALTH_LABEL } from '../constants/theme'
 
@@ -8,23 +8,38 @@ interface Props {
   label?: string
 }
 
-const SIZE = 260
-const STROKE = 18
-const R = (SIZE - STROKE) / 2
-const CIRCUMFERENCE = Math.PI * R  // half-circle arc
+// ─── Arc geometry ────────────────────────────────────────────────────────────
+// A half-circle (180°) dial. The arc runs left → right, bowing upward.
+const SIZE        = 260
+const STROKE      = 18
+const R           = (SIZE - STROKE) / 2            // 121
+const CIRCUMFERENCE = Math.PI * R                  // arc length of a semicircle
+
+// The flat base of the arc sits at y = SIZE / 2 (130).
+// ViewBox height = SIZE / 2 + STROKE gives room for the stroke cap below the base.
+const VB_HEIGHT   = SIZE / 2 + STROKE             // 148
+const CX          = SIZE / 2                       // 130 — horizontal centre
+
+// Arc path: clockwise from left end to right end of the diameter.
+const ARC = `M ${STROKE / 2} ${SIZE / 2} A ${R} ${R} 0 0 1 ${SIZE - STROKE / 2} ${SIZE / 2}`
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function ScoreDial({ score, max = 1000, label }: Props) {
   const motionScore = useMotionValue(0)
-  const displayScore = useRef(0)
 
-  const dashOffset = useTransform(motionScore, (v) => {
-    const pct = v / max
-    return CIRCUMFERENCE * (1 - pct)
-  })
+  // Drives the arc fill via stroke-dashoffset
+  const dashOffset = useTransform(motionScore, (v) => CIRCUMFERENCE * (1 - v / max))
+
+  // Drives the visible counter — state so React re-renders on each frame
+  const [displayScore, setDisplayScore] = useState(0)
 
   useEffect(() => {
-    const controls = animate(motionScore, score, { duration: 1.8, ease: 'easeOut' })
-    motionScore.on('change', (v) => { displayScore.current = Math.round(v) })
+    const controls = animate(motionScore, score, {
+      duration: 1.8,
+      ease: 'easeOut',
+      onUpdate: (v) => setDisplayScore(Math.round(v)),
+    })
     return controls.stop
   }, [score, motionScore])
 
@@ -32,19 +47,26 @@ export default function ScoreDial({ score, max = 1000, label }: Props) {
   const cx = SIZE / 2
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <svg width={SIZE} height={SIZE / 2 + STROKE} viewBox={`0 0 ${SIZE} ${SIZE / 2 + STROKE}`}>
-        {/* Track */}
+    <div className="flex flex-col items-center">
+      <svg
+        width={SIZE}
+        height={VB_HEIGHT}
+        viewBox={`0 0 ${SIZE} ${VB_HEIGHT}`}
+        aria-label={`Wealth Wellness Score: ${score} out of ${max}`}
+        role="img"
+      >
+        {/* ── Track (background arc) ── */}
         <path
-          d={`M ${STROKE / 2} ${SIZE / 2} A ${R} ${R} 0 0 1 ${SIZE - STROKE / 2} ${SIZE / 2}`}
+          d={ARC}
           fill="none"
           stroke="#1E293B"
           strokeWidth={STROKE}
           strokeLinecap="round"
         />
-        {/* Fill */}
+
+        {/* ── Filled arc (animated) ── */}
         <motion.path
-          d={`M ${STROKE / 2} ${SIZE / 2} A ${R} ${R} 0 0 1 ${SIZE - STROKE / 2} ${SIZE / 2}`}
+          d={ARC}
           fill="none"
           stroke={colour}
           strokeWidth={STROKE}
@@ -52,15 +74,47 @@ export default function ScoreDial({ score, max = 1000, label }: Props) {
           strokeDasharray={CIRCUMFERENCE}
           style={{ strokeDashoffset: dashOffset }}
         />
-        {/* Score text */}
-        <text x={cx} y={SIZE / 2 - 12} textAnchor="middle" fill="#FFFFFF" fontSize="42" fontWeight="700" fontFamily="DM Sans">
-          {score}
+
+        {/* ── Glow hint at the leading tip ── */}
+        <motion.path
+          d={ARC}
+          fill="none"
+          stroke={colour}
+          strokeWidth={STROKE + 4}
+          strokeLinecap="round"
+          strokeDasharray={CIRCUMFERENCE}
+          style={{ strokeDashoffset: dashOffset, opacity: 0.15, filter: 'blur(4px)' }}
+        />
+
+        {/* ── Animated score counter ── */}
+        <text
+          x={CX}
+          y={SIZE / 2 - 16}
+          textAnchor="middle"
+          fill="#FFFFFF"
+          fontSize="48"
+          fontWeight="700"
+          fontFamily="DM Sans, ui-sans-serif, sans-serif"
+        >
+          {displayScore}
         </text>
-        <text x={cx} y={SIZE / 2 + 10} textAnchor="middle" fill={colour} fontSize="14" fontWeight="500" fontFamily="DM Sans">
+
+        {/* ── Health label below the number ── */}
+        <text
+          x={CX}
+          y={SIZE / 2 + 8}
+          textAnchor="middle"
+          fill={colour}
+          fontSize="13"
+          fontWeight="500"
+          fontFamily="DM Sans, ui-sans-serif, sans-serif"
+          letterSpacing="0.02em"
+        >
           {label ?? HEALTH_LABEL(score)}
         </text>
       </svg>
-      <p className="text-xs text-text-muted">out of {max}</p>
+
+      <p className="text-xs text-text-muted -mt-1">out of {max}</p>
     </div>
   )
 }
