@@ -1,5 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useDashboard } from './hooks/useDashboard'
 import Layout from './components/Layout'
+import DashboardSkeleton from './components/DashboardSkeleton'
+import ErrorCard from './components/ErrorCard'
 import Pulse from './panels/Pulse'
 import Vitals from './panels/Vitals'
 import PrescriptionPad from './panels/PrescriptionPad'
@@ -8,6 +11,20 @@ import FinancialAnatomy from './panels/FinancialAnatomy'
 import CashFlow from './panels/CashFlow'
 
 export default function App() {
+  const { data, isLoading, isError, error } = useDashboard()
+
+  if (isLoading && !data) {
+    return <DashboardSkeleton />
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center p-6">
+        <ErrorCard message={error?.message} />
+      </div>
+    )
+  }
+
   return (
     <BrowserRouter>
       <Routes>

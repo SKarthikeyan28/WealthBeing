@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useStore } from '../store'
 import { colours } from '../constants/theme'
+import { useSandbox, useMonteCarlo, type MonteCarloResult } from '../hooks/useSandbox'
+import ErrorCard from '../components/ErrorCard'
 import {
   AreaChart,
   Area,
@@ -19,39 +21,81 @@ const SCENARIOS = [
   { id: 'conservative', label: 'Conservative Prognosis' },
 ] as const
 
-// Hardcoded Monte Carlo result (Phase 3: use useMonteCarlo)
-const HARDCODED_TRAJECTORIES = {
+const MONTH_LABELS = ['Now', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12']
+
+const FALLBACK_TRAJECTORIES = {
   p10: [342, 320, 310, 298, 285, 275, 265, 258, 252, 248, 245, 243],
   p50: [342, 335, 332, 330, 331, 334, 338, 341, 344, 347, 350, 354],
   p90: [342, 348, 358, 368, 376, 382, 388, 393, 398, 402, 406, 412],
 }
-const MONTHS = ['Now', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12']
-const chartData = MONTHS.map((month, i) => ({
-  month: i === 0 ? 'Now' : month,
-  p10: HARDCODED_TRAJECTORIES.p10[i] ?? 342,
-  p50: HARDCODED_TRAJECTORIES.p50[i] ?? 342,
-  p90: HARDCODED_TRAJECTORIES.p90[i] ?? 342,
-}))
+
+function trajectoriesToChartData(t: { p10: number[]; p50: number[]; p90: number[] }) {
+  const len = t.p50.length
+  return MONTH_LABELS.slice(0, len).map((month, i) => ({
+    month: i === 0 ? 'Now' : month,
+    p10: Math.round((t.p10[i] ?? 0) / 1000),
+    p50: Math.round((t.p50[i] ?? 0) / 1000),
+    p90: Math.round((t.p90[i] ?? 0) / 1000),
+  }))
+}
 
 export default function TreatmentPlan() {
   const sandboxAdjustments = useStore((s) => s.sandboxAdjustments)
   const setSandboxAdjustment = useStore((s) => s.setSandboxAdjustment)
+  const sandboxResult = useStore((s) => s.sandboxResult)
+  const setSandboxResult = useStore((s) => s.setSandboxResult)
   const [selectedScenario, setSelectedScenario] = useState<string>(SCENARIOS[0].id)
-  const [hasRunSimulation, setHasRunSimulation] = useState(false)
+  const [monteCarloResult, setMonteCarloResult] = useState<MonteCarloResult | null>(null)
 
-  // Heuristic delta from sliders (Phase 3: real API)
-  const wwsDelta = Math.round(
+  const sandboxMutation = useSandbox()
+  const monteCarloMutation = useMonteCarlo()
+  const loading = sandboxMutation.isPending || monteCarloMutation.isPending
+  const error = sandboxMutation.isError || monteCarloMutation.isError
+
+  const wwsDelta = sandboxResult?.wws_delta ?? Math.round(
     sandboxAdjustments.extra_savings / 25 +
       sandboxAdjustments.debt_payoff / 1200 -
       sandboxAdjustments.equity_rebalance * 1.5 +
       sandboxAdjustments.passive_income_increase / 25
   )
-  const projectedNetWorth12m = 354000
-  const displayWwsDelta = hasRunSimulation ? -38 : wwsDelta
+  const projectedNetWorth12m = monteCarloResult?.projected_net_worth_12m ?? 354000
+  const displayWwsDelta = monteCarloResult?.wws_delta ?? wwsDelta
+
+  const chartData = useMemo(() => {
+    if (monteCarloResult?.trajectories) {
+      return trajectoriesToChartData(monteCarloResult.trajectories)
+    }
+    return MONTH_LABELS.map((month, i) => ({
+      month: i === 0 ? 'Now' : month,
+      p10: FALLBACK_TRAJECTORIES.p10[i] ?? 342,
+      p50: FALLBACK_TRAJECTORIES.p50[i] ?? 342,
+      p90: FALLBACK_TRAJECTORIES.p90[i] ?? 342,
+    }))
+  }, [monteCarloResult])
+
+  const runSimulation = () => {
+    setMonteCarloResult(null)
+    sandboxMutation.mutate(sandboxAdjustments, {
+      onSuccess: (data) => {
+        setSandboxResult(data)
+        monteCarloMutation.mutate(
+          { scenario: selectedScenario, adjustments: sandboxAdjustments },
+          { onSuccess: (mcData) => setMonteCarloResult(mcData) }
+        )
+      },
+    })
+  }
+
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center p-6">
+        <ErrorCard message="Simulation service unavailable. Check gateway and simulation service." />
+      </div>
+    )
+  }
 
   return (
     <div className="h-full overflow-y-auto bg-bg p-6 space-y-6">
-      {/* Scenario selector */}
       <div>
         <p className="text-xs font-medium text-text-muted uppercase tracking-widest mb-2">Scenario</p>
         <div className="flex flex-wrap gap-2">
@@ -72,12 +116,9 @@ export default function TreatmentPlan() {
         </div>
       </div>
 
-      {/* Sliders */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-white mb-1">
-            Extra Monthly Savings (S$0 → S$2,000)
-          </label>
+          <label className="block text-sm font-medium text-white mb-1">Extra Monthly Savings (S$0 → S$2,000)</label>
           <input
             type="range"
             min={0}
@@ -90,9 +131,7 @@ export default function TreatmentPlan() {
           <p className="text-xs text-text-muted mt-0.5">S${sandboxAdjustments.extra_savings}</p>
         </div>
         <div>
-          <label className="block text-sm font-medium text-white mb-1">
-            Debt Payoff Lump Sum (S$0 → S$50,000)
-          </label>
+          <label className="block text-sm font-medium text-white mb-1">Debt Payoff Lump Sum (S$0 → S$50,000)</label>
           <input
             type="range"
             min={0}
@@ -105,9 +144,7 @@ export default function TreatmentPlan() {
           <p className="text-xs text-text-muted mt-0.5">S${sandboxAdjustments.debt_payoff.toLocaleString()}</p>
         </div>
         <div>
-          <label className="block text-sm font-medium text-white mb-1">
-            Equity Rebalance (0% → 20%)
-          </label>
+          <label className="block text-sm font-medium text-white mb-1">Equity Rebalance (0% → 20%)</label>
           <input
             type="range"
             min={0}
@@ -120,9 +157,7 @@ export default function TreatmentPlan() {
           <p className="text-xs text-text-muted mt-0.5">{sandboxAdjustments.equity_rebalance}%</p>
         </div>
         <div>
-          <label className="block text-sm font-medium text-white mb-1">
-            Passive Income Increase (S$0 → S$1,000/mo)
-          </label>
+          <label className="block text-sm font-medium text-white mb-1">Passive Income Increase (S$0 → S$1,000/mo)</label>
           <input
             type="range"
             min={0}
@@ -136,7 +171,6 @@ export default function TreatmentPlan() {
         </div>
       </div>
 
-      {/* WWS delta card */}
       <div
         className="rounded-xl border-2 p-6 text-center"
         style={{
@@ -150,18 +184,17 @@ export default function TreatmentPlan() {
         <p className="text-sm text-text-muted mt-1">WWS impact from adjustments</p>
       </div>
 
-      {/* Run Simulation button */}
       <div>
         <button
-          onClick={() => setHasRunSimulation(true)}
-          className="w-full md:w-auto px-6 py-3 rounded-xl text-sm font-semibold text-bg transition-opacity hover:opacity-90"
+          onClick={runSimulation}
+          disabled={loading}
+          className="w-full md:w-auto px-6 py-3 rounded-xl text-sm font-semibold text-bg disabled:opacity-50 transition-opacity hover:opacity-90"
           style={{ backgroundColor: colours.teal }}
         >
-          Run Simulation
+          {loading ? 'Running…' : 'Run Simulation'}
         </button>
       </div>
 
-      {/* Monte Carlo chart */}
       <div className="rounded-xl border border-border bg-surface p-4">
         <p className="text-sm font-medium text-white mb-4">12‑month net worth range (S$k)</p>
         <div className="h-72">
@@ -185,7 +218,6 @@ export default function TreatmentPlan() {
         </div>
       </div>
 
-      {/* Summary card */}
       <div className="rounded-xl border border-border bg-surface p-4 text-sm text-text-muted">
         <span className="text-white font-medium">Projected Net Worth in 12 months:</span> S$
         {projectedNetWorth12m.toLocaleString()} <span className="mx-2">|</span>

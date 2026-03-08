@@ -2,19 +2,26 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { apiClient } from '../constants/api'
 import type { SandboxAdjustments, SandboxResult } from '../store'
 
+export interface MonteCarloResult {
+  scenario_label: string
+  trajectories: { p10: number[]; p50: number[]; p90: number[] }
+  wws_delta: number
+  projected_net_worth_12m: number
+}
+
 export function useSandbox() {
-  return useMutation<SandboxResult, Error, { portfolio: unknown; adjustments: SandboxAdjustments; current_wws: number }>({
-    mutationFn: async (body) => {
-      const { data } = await apiClient.post('/api/sandbox', body)
+  return useMutation<SandboxResult, Error, SandboxAdjustments>({
+    mutationFn: async (adjustments) => {
+      const { data } = await apiClient.post<SandboxResult>('/api/sandbox', adjustments)
       return data
     },
   })
 }
 
 export function useMonteCarlo() {
-  return useMutation({
-    mutationFn: async (body: { scenario: string; adjustments: SandboxAdjustments; portfolio: unknown }) => {
-      const { data } = await apiClient.post('/api/sandbox/monte-carlo', body)
+  return useMutation<MonteCarloResult, Error, { scenario: string; adjustments: SandboxAdjustments }>({
+    mutationFn: async ({ scenario, adjustments }) => {
+      const { data } = await apiClient.post<MonteCarloResult>('/api/sandbox/monte-carlo', { scenario, adjustments })
       return data
     },
   })
