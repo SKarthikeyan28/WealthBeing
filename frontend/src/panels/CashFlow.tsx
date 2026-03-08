@@ -14,8 +14,25 @@ export default function CashFlow() {
 
   if (!portfolio?.cashflow) {
     return (
-      <div className="h-full flex items-center justify-center p-6">
-        <div className="rounded-xl border border-border bg-surface h-32 w-64 animate-pulse" />
+      <div className="h-full overflow-y-auto bg-bg p-6 space-y-6">
+        {/* KPI cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border bg-surface p-4 space-y-2">
+              <div className="h-2 rounded bg-border animate-pulse w-16" />
+              <div className="h-6 rounded bg-border animate-pulse w-20" />
+            </div>
+          ))}
+        </div>
+        {/* Savings gauge */}
+        <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
+          <div className="h-2 rounded bg-border animate-pulse w-24" />
+          <div className="h-3 rounded-full bg-border animate-pulse w-full" />
+        </div>
+        {/* Expense chart */}
+        <div className="rounded-xl border border-border bg-surface h-64 animate-pulse" />
+        {/* Trend chart */}
+        <div className="rounded-xl border border-border bg-surface h-44 animate-pulse" />
       </div>
     )
   }

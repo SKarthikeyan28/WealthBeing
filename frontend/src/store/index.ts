@@ -32,8 +32,9 @@ export interface Portfolio {
 export interface ClinicalNote {
   id: string
   rxId: string
+  vital: string        // pillar key e.g. 'liquidity', 'risk_reward'
   text: string
-  createdAt: string
+  createdAt: string    // ISO 8601
 }
 
 export interface SandboxAdjustments {

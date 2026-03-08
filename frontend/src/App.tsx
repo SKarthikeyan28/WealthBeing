@@ -11,7 +11,7 @@ import FinancialAnatomy from './panels/FinancialAnatomy'
 import CashFlow from './panels/CashFlow'
 
 export default function App() {
-  const { data, isLoading, isError, error } = useDashboard()
+  const { data, isLoading, isError, error, refetch } = useDashboard()
 
   if (isLoading && !data) {
     return <DashboardSkeleton />
@@ -20,7 +20,7 @@ export default function App() {
   if (isError) {
     return (
       <div className="min-h-screen bg-bg flex items-center justify-center p-6">
-        <ErrorCard message={error?.message} />
+        <ErrorCard message={error?.message} onRetry={refetch} />
       </div>
     )
   }
