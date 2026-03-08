@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
-import { wwsColour, HEALTH_LABEL } from '../constants/theme'
+import { wwsColour, HEALTH_LABEL, colours } from '../constants/theme'
 
 interface Props {
   score: number
@@ -44,7 +44,6 @@ export default function ScoreDial({ score, max = 1000, label }: Props) {
   }, [score, motionScore])
 
   const colour = wwsColour(score)
-  const cx = SIZE / 2
 
   return (
     <div className="flex flex-col items-center">
@@ -59,7 +58,7 @@ export default function ScoreDial({ score, max = 1000, label }: Props) {
         <path
           d={ARC}
           fill="none"
-          stroke="#1E293B"
+          stroke={colours.border}
           strokeWidth={STROKE}
           strokeLinecap="round"
         />
@@ -91,7 +90,7 @@ export default function ScoreDial({ score, max = 1000, label }: Props) {
           x={CX}
           y={SIZE / 2 - 16}
           textAnchor="middle"
-          fill="#FFFFFF"
+          fill={colours.textPrimary}
           fontSize="48"
           fontWeight="700"
           fontFamily="DM Sans, ui-sans-serif, sans-serif"

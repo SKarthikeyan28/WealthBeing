@@ -35,8 +35,18 @@ export default function Vitals() {
 
   if (!vitals) {
     return (
-      <div className="h-full flex items-center justify-center p-6">
-        <div className="rounded-xl border border-border bg-surface h-48 w-64 animate-pulse" />
+      <div className="h-full overflow-y-auto bg-bg p-6 space-y-6">
+        <div className="rounded-xl border border-border bg-surface p-4 h-80 animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border bg-surface p-4 space-y-2">
+              <div className="h-2 rounded bg-border animate-pulse w-24" />
+              <div className="h-6 rounded bg-border animate-pulse w-16" />
+              <div className="h-4 rounded-full bg-border animate-pulse w-20" />
+              <div className="h-2 rounded bg-border animate-pulse w-full" />
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

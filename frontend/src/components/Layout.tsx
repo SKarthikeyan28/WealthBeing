@@ -1,6 +1,8 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { PANEL_NAMES, colours } from '../constants/theme'
 import { useStore } from '../store'
+import type { ClinicalNote } from '../store'
 
 // ─── Nav Items ───────────────────────────────────────────────────────────────
 
@@ -13,10 +15,107 @@ const NAV_ITEMS: { path: string; label: string; icon: string }[] = [
   { path: '/cashflow',     label: PANEL_NAMES.cashflow,     icon: '⇄' },
 ]
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function formatTimestamp(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleString('en-SG', {
+    month: 'short',
+    day:   'numeric',
+    hour:  '2-digit',
+    minute:'2-digit',
+    hour12: false,
+  })
+}
+
+function vitalLabel(vital: string): string {
+  return vital
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
+// ─── Clinical Notes Sidebar ───────────────────────────────────────────────────
+
+function ClinicalNotesSidebar({ notes }: { notes: ClinicalNote[] }) {
+  // Newest first
+  const sorted = [...notes].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  )
+
+  return (
+    <motion.aside
+      className="w-64 flex-shrink-0 border-l border-border bg-surface flex flex-col"
+      initial={{ opacity: 0, x: 24 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 24 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+    >
+      {/* Header */}
+      <div className="px-4 py-4 border-b border-border flex items-center gap-2">
+        <span style={{ color: colours.purple }} className="text-sm">⚕</span>
+        <p
+          className="text-xs font-semibold uppercase tracking-widest"
+          style={{ color: colours.purple }}
+        >
+          Clinical Observations
+        </p>
+      </div>
+
+      {/* Note list */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {sorted.length === 0 ? (
+          <p className="text-xs text-text-muted text-center py-8 leading-relaxed">
+            No clinical observations yet.
+          </p>
+        ) : (
+          sorted.map((note) => (
+            <motion.div
+              key={note.id}
+              className="rounded-lg border border-border bg-bg p-3 flex flex-col gap-1.5"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {/* Vital tag + timestamp row */}
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                  style={{
+                    background: `${colours.purple}1A`,
+                    color:      colours.purple,
+                  }}
+                >
+                  {vitalLabel(note.vital)}
+                </span>
+                <span className="text-[10px] text-text-muted flex-shrink-0">
+                  {formatTimestamp(note.createdAt)}
+                </span>
+              </div>
+
+              {/* Note text */}
+              <p className="text-xs text-white leading-snug">{note.text}</p>
+            </motion.div>
+          ))
+        )}
+      </div>
+
+      {/* Footer count */}
+      {sorted.length > 0 && (
+        <div className="px-4 py-3 border-t border-border">
+          <p className="text-[10px] text-text-muted">
+            {sorted.length} observation{sorted.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      )}
+    </motion.aside>
+  )
+}
+
 // ─── Layout ──────────────────────────────────────────────────────────────────
 
 export default function Layout() {
-  const { persona, setPersona } = useStore()
+  const { persona, setPersona, clinicalNotes } = useStore()
 
   const isAdviser = persona === 'ADVISER'
 
@@ -54,7 +153,6 @@ export default function Layout() {
                 ].join(' ')
               }
             >
-              {/* Icon — fixed width keeps labels aligned */}
               <span
                 className="text-xs font-bold w-5 text-center flex-shrink-0 select-none"
                 aria-hidden
@@ -77,7 +175,7 @@ export default function Layout() {
             aria-label="View mode"
           >
             {(['CLIENT', 'ADVISER'] as const).map((p) => {
-              const active = persona === p
+              const active      = persona === p
               const activeColor = p === 'ADVISER' ? colours.purple : colours.teal
               return (
                 <button
@@ -100,7 +198,7 @@ export default function Layout() {
       </aside>
 
       {/* ── Main area ───────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 
         {/* Header */}
         <header className="h-14 flex-shrink-0 border-b border-border flex items-center justify-between px-6">
@@ -134,10 +232,19 @@ export default function Layout() {
           </span>
         </header>
 
-        {/* Panel content */}
-        <main className="flex-1 overflow-auto p-6 bg-bg">
-          <Outlet />
-        </main>
+        {/* Content row: panel + optional clinical notes sidebar */}
+        <div className="flex-1 flex overflow-hidden">
+          <main className="flex-1 overflow-auto p-6 bg-bg min-w-0">
+            <Outlet />
+          </main>
+
+          {/* Clinical Notes Sidebar — ADVISER mode only */}
+          <AnimatePresence>
+            {isAdviser && (
+              <ClinicalNotesSidebar notes={clinicalNotes} />
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   )

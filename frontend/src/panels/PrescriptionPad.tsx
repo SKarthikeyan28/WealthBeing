@@ -81,7 +81,11 @@ export default function PrescriptionPad() {
                     onAddNote={isAdviserMode ? () => setNoteForRxId((id) => (id === insight.id ? null : insight.id)) : undefined}
                   />
                   {isAdviserMode && noteForRxId === insight.id && (
-                    <ClinicalNoteInput rxId={insight.id} onClose={() => setNoteForRxId(null)} />
+                    <ClinicalNoteInput
+                      rxId={insight.id}
+                      vital={insight.vital}
+                      onClose={() => setNoteForRxId(null)}
+                    />
                   )}
                 </div>
               ))}

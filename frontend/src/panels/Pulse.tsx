@@ -39,8 +39,30 @@ export default function Pulse() {
 
   if (wws === null || !vitals) {
     return (
-      <div className="h-full flex items-center justify-center p-6">
-        <div className="rounded-xl border border-border bg-surface h-32 w-64 animate-pulse" />
+      <div className="h-full overflow-y-auto bg-bg p-6 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          {/* Dial placeholder */}
+          <div className="flex justify-center">
+            <div className="w-56 h-56 rounded-full bg-surface border border-border animate-pulse" />
+          </div>
+          {/* Vital bar placeholders */}
+          <div className="space-y-4 pt-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <div className="h-2.5 rounded bg-surface animate-pulse" style={{ width: `${50 + i * 8}%` }} />
+                <div className="h-2 rounded-full bg-surface animate-pulse w-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Sparkline placeholder */}
+        <div className="rounded-xl border border-border bg-surface h-48 animate-pulse" />
+        {/* Actions placeholder */}
+        <div className="rounded-xl border border-border bg-surface p-4 space-y-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="h-3 rounded bg-border animate-pulse" style={{ width: `${70 + i * 10}%` }} />
+          ))}
+        </div>
       </div>
     )
   }
