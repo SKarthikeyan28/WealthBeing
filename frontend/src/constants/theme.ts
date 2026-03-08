@@ -81,5 +81,5 @@ export const PROMPT_CHIPS: string[] = [
   'Am I healthy enough to retire at 60?',
   'How can I close my liquidity gap faster?',
   'Should I sell some NVDA to rebalance?',
-  'What's my biggest financial risk right now?',
+  "What's my biggest financial risk right now?",
 ]
