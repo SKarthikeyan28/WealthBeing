@@ -1,33 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useStore } from '../store'
 import { colours, SENTIMENT_OPTIONS, PROMPT_CHIPS } from '../constants/theme'
+import { useInsights, useAdviserChat } from '../hooks/useAdviser'
 import RxCard from '../components/RxCard'
 import ClinicalNoteInput from '../components/ClinicalNoteInput'
-
-// Hardcoded insight data (Phase 3: use useInsights)
-const HARDCODED_INSIGHTS = [
-  {
-    id: 'rx-001',
-    vital: 'liquidity',
-    title: 'Emergency Fund Gap',
-    body: 'Your liquidity coverage sits at 4.2 months — below the 6-month target. A shortfall of ~S$7,200.',
-    prescribed_action: 'Redirect S$600/month to your emergency fund for 12 months.',
-  },
-  {
-    id: 'rx-002',
-    vital: 'risk_reward',
-    title: 'Concentration Risk: NVDA',
-    body: 'NVDA accounts for 38% of your equity portfolio — above the 35% safe threshold.',
-    prescribed_action: 'Sell 5% of NVDA and reallocate to a broad ETF (e.g., VOO).',
-  },
-  {
-    id: 'rx-003',
-    vital: 'growth_momentum',
-    title: 'Savings Rate Below Target',
-    body: 'Current savings rate: 22%. Target: 30%. At current rate, retirement gap widens by ~S$45,000 by age 45.',
-    prescribed_action: 'Automate an additional S$800/month transfer to investments on payday.',
-  },
-]
+import ErrorCard from '../components/ErrorCard'
 
 interface ChatMessage {
   role: 'user' | 'adviser'
@@ -40,9 +17,13 @@ export default function PrescriptionPad() {
   const setSentiment = useStore((s) => s.setSentiment)
   const [inputValue, setInputValue] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [loading, setLoading] = useState(false)
   const [noteForRxId, setNoteForRxId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const { data: insightsData, isLoading: insightsLoading, isError: insightsError } = useInsights()
+  const insights = insightsData?.insights ?? []
+  const chatMutation = useAdviserChat()
+  const loading = chatMutation.isPending
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   useEffect(() => { scrollToBottom() }, [messages])
@@ -52,45 +33,58 @@ export default function PrescriptionPad() {
     if (!text) return
     setInputValue('')
     setMessages((m) => [...m, { role: 'user', content: text }])
-    setLoading(true)
-    // Simulate response (Phase 3: use useAdviserChat)
-    setTimeout(() => {
-      setMessages((m) => [
-        ...m,
-        {
-          role: 'adviser',
-          content: `Based on your current Wealth Health Score of 724 (Moderate Health), your liquidity and concentration risk are the main areas to address.\n\nPrescribed Action: Increase your emergency fund from 4.2 to 6 months of expenses by redirecting S$600/month for 12 months.`,
+    chatMutation.mutate(
+      { message: text, sentiment },
+      {
+        onSuccess: (data) => {
+          setMessages((m) => [...m, { role: 'adviser', content: data.response }])
         },
-      ])
-      setLoading(false)
-    }, 1200)
+        onError: () => {
+          setMessages((m) => [
+            ...m,
+            { role: 'adviser', content: 'Unable to retrieve vital reading. Please try again.' },
+          ])
+        },
+      }
+    )
   }
 
   const handleChipClick = (prompt: string) => setInputValue(prompt)
-
   const isAdviserMode = persona === 'ADVISER'
+
+  if (insightsError) {
+    return (
+      <div className="h-full flex items-center justify-center p-6">
+        <ErrorCard title="Unable to load insights" message="Check that the adviser service is running." />
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-bg">
       <div className="flex-shrink-0 p-6 space-y-6">
-        {/* 3 RxCards */}
+        {/* RxCards from API */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {HARDCODED_INSIGHTS.map((insight) => (
-            <div key={insight.id}>
-              <RxCard
-                vital={insight.vital}
-                title={insight.title}
-                body={insight.body}
-                prescribedAction={insight.prescribed_action}
-                rxId={insight.id}
-                isAdviserMode={isAdviserMode}
-                onAddNote={isAdviserMode ? () => setNoteForRxId((id) => (id === insight.id ? null : insight.id)) : undefined}
-              />
-              {isAdviserMode && noteForRxId === insight.id && (
-                <ClinicalNoteInput rxId={insight.id} onClose={() => setNoteForRxId(null)} />
-              )}
-            </div>
-          ))}
+          {insightsLoading
+            ? [1, 2, 3].map((i) => (
+                <div key={i} className="rounded-xl border border-border bg-surface h-40 animate-pulse" />
+              ))
+            : insights.map((insight) => (
+                <div key={insight.id}>
+                  <RxCard
+                    vital={insight.vital}
+                    title={insight.title}
+                    body={insight.body}
+                    prescribedAction={insight.prescribed_action}
+                    rxId={insight.id}
+                    isAdviserMode={isAdviserMode}
+                    onAddNote={isAdviserMode ? () => setNoteForRxId((id) => (id === insight.id ? null : insight.id)) : undefined}
+                  />
+                  {isAdviserMode && noteForRxId === insight.id && (
+                    <ClinicalNoteInput rxId={insight.id} onClose={() => setNoteForRxId(null)} />
+                  )}
+                </div>
+              ))}
         </div>
 
         {/* Sentiment selector */}
