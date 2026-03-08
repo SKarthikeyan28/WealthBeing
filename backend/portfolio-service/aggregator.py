@@ -9,8 +9,17 @@ def get_net_worth(portfolio: Portfolio) -> float:
 
 def get_asset_class_buckets(portfolio: Portfolio) -> dict[str, AssetClassBucket]:
     """Return each asset class with its total value and percentage of total assets."""
-    # TODO: implement asset class bucketing
-    raise NotImplementedError
+    a = portfolio.assets
+    raw = {
+        "equities":    a.equities.total,
+        "cpf":         a.cpf.ordinary_account + a.cpf.special_account + a.cpf.medisave,
+        "real_estate": a.real_estate.equity,
+        "cash":        a.cash.emergency_fund + a.cash.savings_account,
+        "crypto":      a.crypto.total,
+        "bonds":       a.bonds.total,
+    }
+    total = sum(raw.values()) or 1.0
+    return {k: AssetClassBucket(total=v, pct=round(v / total, 4)) for k, v in raw.items()}
 
 
 def get_liquid_assets(portfolio: Portfolio) -> float:

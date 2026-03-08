@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from models import Portfolio
+from aggregator import get_asset_class_buckets
 
 app = FastAPI(title="WealthBeing Portfolio Service", version="1.0.0")
 
@@ -47,5 +48,6 @@ def get_cashflow():
 
 @app.get("/portfolio/assets")
 def get_assets():
-    # TODO: use aggregator.get_asset_class_buckets for enriched response
-    return _portfolio_data.get("assets", {})
+    portfolio_obj = Portfolio(**_portfolio_data)
+    buckets = get_asset_class_buckets(portfolio_obj)
+    return {k: {"total": v.total, "pct": v.pct} for k, v in buckets.items()}

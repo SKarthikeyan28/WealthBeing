@@ -1,4 +1,3 @@
-import asyncio
 import os
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -27,16 +26,14 @@ async def health():
 @app.get("/api/dashboard")
 async def get_dashboard():
     """
-    Aggregates portfolio + scoring data in parallel — the architectural showcase.
-    Calls Portfolio Service and Scoring Engine concurrently via asyncio.gather.
+    Aggregates portfolio + scoring data — fetches portfolio, then scores it, merges both.
     """
     async with httpx.AsyncClient(timeout=10.0) as client:
-        portfolio_task = client.get(f"{PORTFOLIO_URL}/portfolio")
-        score_task = client.post(f"{SCORING_URL}/score", json={})  # TODO: pass portfolio body
-
-        portfolio_res, score_res = await asyncio.gather(portfolio_task, score_task)
-
+        portfolio_res = await client.get(f"{PORTFOLIO_URL}/portfolio")
     portfolio = portfolio_res.json()
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        score_res = await client.post(f"{SCORING_URL}/score", json=portfolio)
     score_data = score_res.json()
 
     return {**portfolio, **score_data}

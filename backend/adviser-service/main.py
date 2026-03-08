@@ -50,7 +50,7 @@ async def post_adviser_chat(body: dict):
 
 
 @app.get("/adviser/insights")
-async def get_adviser_insights(body: dict = None):
+async def get_adviser_insights():
     """
     Return pre-computed Rx insight cards — no Claude call, generated from data.
     TODO: wire portfolio + vitals data from portfolio service rather than using defaults.
