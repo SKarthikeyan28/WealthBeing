@@ -30,7 +30,6 @@ export default function ScoreDial({ score, max = 1000, label }: Props) {
 
   const colour = wwsColour(score)
   const cx = SIZE / 2
-  const cy = SIZE / 2
 
   return (
     <div className="flex flex-col items-center gap-2">
