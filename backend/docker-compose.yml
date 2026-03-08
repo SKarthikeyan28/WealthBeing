@@ -63,6 +63,7 @@ services:
       - SCORING_ENGINE_URL=http://scoring-engine:8002
       - SIMULATION_SERVICE_URL=http://simulation-service:8003
       - ADVISER_SERVICE_URL=http://adviser-service:8004
+      - FRONTEND_URL=${FRONTEND_URL:-}
     depends_on:
       - portfolio-service
       - scoring-engine

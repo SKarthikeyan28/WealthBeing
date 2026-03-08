@@ -1,14 +1,20 @@
-import asyncio
 import os
+import asyncio
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="WealthBeing API Gateway", version="1.0.0")
 
+_frontend_url = os.getenv("FRONTEND_URL", "")
+_allowed_origins = ["http://localhost:5173", "http://localhost:3000"]
+if _frontend_url:
+    _allowed_origins.append(_frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -21,22 +27,40 @@ ADVISER_URL = os.getenv("ADVISER_SERVICE_URL", "http://localhost:8004")
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    """Fan-out health check to all 4 downstream services."""
+    services = {
+        "portfolio": PORTFOLIO_URL,
+        "scoring": SCORING_URL,
+        "simulation": SIMULATION_URL,
+        "adviser": ADVISER_URL,
+    }
+
+    async def check(name: str, base_url: str) -> tuple[str, str]:
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                res = await client.get(f"{base_url}/health")
+            return name, "ok" if res.status_code == 200 else "degraded"
+        except Exception:
+            return name, "unreachable"
+
+    results = await asyncio.gather(*[check(n, u) for n, u in services.items()])
+    statuses = dict(results)
+    aggregate = "ok" if all(v == "ok" for v in statuses.values()) else "degraded"
+    return {"status": aggregate, "services": statuses}
 
 
 @app.get("/api/dashboard")
 async def get_dashboard():
     """
-    Aggregates portfolio + scoring data in parallel — the architectural showcase.
-    Calls Portfolio Service and Scoring Engine concurrently via asyncio.gather.
+    Aggregates portfolio + scoring data — fetches portfolio, then scores it in parallel.
     """
     async with httpx.AsyncClient(timeout=10.0) as client:
-        portfolio_task = client.get(f"{PORTFOLIO_URL}/portfolio")
-        score_task = client.post(f"{SCORING_URL}/score", json={})  # TODO: pass portfolio body
-
-        portfolio_res, score_res = await asyncio.gather(portfolio_task, score_task)
-
+        portfolio_res = await client.get(f"{PORTFOLIO_URL}/portfolio")
     portfolio = portfolio_res.json()
+
+    # Score is dependent on portfolio data, so run sequentially
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        score_res = await client.post(f"{SCORING_URL}/score", json=portfolio)
     score_data = score_res.json()
 
     return {**portfolio, **score_data}
@@ -86,8 +110,13 @@ async def post_score_explain(body: dict):
 
 @app.post("/api/sandbox")
 async def post_sandbox(body: dict):
+    # Fetch portfolio so simulation service can score the modified version
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        portfolio_res = await client.get(f"{PORTFOLIO_URL}/portfolio")
+    portfolio = portfolio_res.json()
+
     async with httpx.AsyncClient(timeout=30.0) as client:
-        res = await client.post(f"{SIMULATION_URL}/sandbox", json=body)
+        res = await client.post(f"{SIMULATION_URL}/sandbox", json={"portfolio": portfolio, "adjustments": body})
     return res.json()
 
 

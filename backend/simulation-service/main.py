@@ -40,9 +40,11 @@ async def post_sandbox(body: dict):
     extra_savings = adjustments.get("extra_savings", 0)
     if extra_savings and "cashflow" in modified:
         modified["cashflow"] = dict(modified["cashflow"])
-        modified["cashflow"]["monthly_savings"] = modified["cashflow"].get("monthly_savings", 0) + extra_savings
-
-    # TODO: apply debt_payoff, equity_rebalance, passive_income_increase adjustments
+        new_savings = modified["cashflow"].get("monthly_savings", 0) + extra_savings
+        modified["cashflow"]["monthly_savings"] = new_savings
+        # Recalculate savings_rate so scoring engine picks up the improvement
+        monthly_income = modified["cashflow"].get("monthly_income", 1) or 1
+        modified["cashflow"]["savings_rate"] = round(new_savings / monthly_income, 4)
 
     # Get new score from scoring engine
     async with httpx.AsyncClient(timeout=10.0) as client:
