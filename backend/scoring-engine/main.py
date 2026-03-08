@@ -61,29 +61,71 @@ def compute_wws(pillar_scores: dict[str, float]) -> int:
 
 
 def get_diagnosis_summary(vitals: dict) -> str:
-    # TODO: generate a meaningful 1-sentence summary based on vital statuses
-    critical = [v for v, d in vitals.items() if d["status"] == "critical"]
-    monitor = [v for v, d in vitals.items() if d["status"] == "monitor"]
+    """Generate a 1-sentence summary based on which vitals are healthy/monitor/critical."""
+    critical = [k for k, d in vitals.items() if d["status"] == "critical"]
+    monitor = [k for k, d in vitals.items() if d["status"] == "monitor"]
     if critical:
-        return f"Critical vitals detected in: {', '.join(critical)}. Immediate action recommended."
+        return f"Critical vitals in {', '.join(critical)}. Immediate action recommended."
     if monitor:
+        if "liquidity" in monitor and "risk_reward" in monitor:
+            return "Strong growth momentum offset by a liquidity gap and concentration risk."
         return f"Strong foundation offset by monitoring flags in: {', '.join(monitor)}."
     return "All vitals are in a healthy range. Maintain your current trajectory."
 
 
 def get_prescribed_actions(vitals: dict, portfolio: dict) -> list[str]:
-    # TODO: generate specific prescribed actions from vital flags and portfolio data
+    """Return 2–3 specific action strings using portfolio numbers."""
     actions = []
+    assets = portfolio.get("assets") or {}
+    cashflow = portfolio.get("cashflow") or {}
+    expenses = cashflow.get("monthly_expenses") or {}
+    monthly_expenses = sum(expenses.values()) if isinstance(expenses, dict) else 0
+    emergency_fund = (assets.get("cash") or {}).get("emergency_fund") or 0
+    months_ef = round(emergency_fund / (monthly_expenses + 0.01), 1) if monthly_expenses else 0
+
     if vitals.get("liquidity", {}).get("status") in ("monitor", "critical"):
-        actions.append("Increase emergency fund to 6 months of expenses.")
+        actions.append(f"Increase emergency fund from {months_ef} to 6 months of expenses")
     if vitals.get("risk_reward", {}).get("status") in ("monitor", "critical"):
-        actions.append("Rebalance top equity holding to below 35% of portfolio.")
+        equities = assets.get("equities") or {}
+        holdings = equities.get("holdings") or []
+        if holdings:
+            top = holdings[0]
+            name = top.get("ticker", "top holding")
+            pct = int((top.get("pct_of_equity") or 0) * 100)
+            actions.append(f"Rebalance {name} position from {pct}% to below 35% of equity")
+        else:
+            actions.append("Rebalance top equity holding to below 35% of equity")
     if vitals.get("growth_momentum", {}).get("status") in ("monitor", "critical"):
-        actions.append("Automate an additional monthly transfer to investments.")
-    return actions or ["Continue your current financial routine — all vitals are healthy."]
+        actions.append("Automate an additional monthly transfer to investments on payday")
+    return actions[:3] if actions else ["Continue your current financial routine — all vitals are healthy."]
 
 
-def _run_scoring(portfolio: dict) -> tuple[dict, int, str, list[str], list[str]]:
+def get_vital_explanations(vitals: dict, portfolio: dict) -> dict[str, str]:
+    """Return a short human-readable explanation for each vital."""
+    assets = portfolio.get("assets") or {}
+    cashflow = portfolio.get("cashflow") or {}
+    expenses = cashflow.get("monthly_expenses") or {}
+    monthly_expenses = sum(expenses.values()) if isinstance(expenses, dict) else 0
+    emergency_fund = (assets.get("cash") or {}).get("emergency_fund") or 0
+    months_ef = round(emergency_fund / (monthly_expenses + 0.01), 1) if monthly_expenses else 0
+    savings_rate_pct = int((cashflow.get("savings_rate") or 0) * 100)
+    si = portfolio.get("scoring_inputs") or {}
+    yoy_pct = round((si.get("yoy_net_worth_growth") or 0) * 100, 1)
+    top_pct = int((si.get("top_holding_pct") or 0) * 100)
+    equities = assets.get("equities") or {}
+    holdings = equities.get("holdings") or []
+    top_name = holdings[0].get("ticker", "top holding") if holdings else "equity"
+
+    return {
+        "diversification": f"Portfolio is spread across multiple asset classes (entropy-based). Score {vitals['diversification']['score']}/100 — {'healthy spread' if vitals['diversification']['status'] == 'healthy' else 'consider diversifying further'}.",
+        "liquidity": f"Emergency fund covers {months_ef} months of expenses (target 6). Liquid assets ratio contributes to the score. {vitals['liquidity']['label']}: {vitals['liquidity']['score']}/100.",
+        "behavioral": f"Based on transaction history (panic sells and reactive trades). Fewer emotional trades mean a higher score. {vitals['behavioral']['label']}: {vitals['behavioral']['score']}/100.",
+        "growth_momentum": f"Savings rate {savings_rate_pct}% vs 30% target, plus YoY net worth growth {yoy_pct}%. Combined into {vitals['growth_momentum']['label']}: {vitals['growth_momentum']['score']}/100.",
+        "risk_reward": f"Risk-adjusted return (Sharpe proxy) minus concentration penalty. {top_name} at {top_pct}% of equity. {vitals['risk_reward']['label']}: {vitals['risk_reward']['score']}/100.",
+    }
+
+
+def _run_scoring(portfolio: dict) -> tuple[dict, int, str, str, list[str], list[str]]:
     si = portfolio["scoring_inputs"]
     cashflow = portfolio["cashflow"]
     transactions = portfolio["transactions"]
@@ -92,7 +134,9 @@ def _run_scoring(portfolio: dict) -> tuple[dict, int, str, list[str], list[str]]
     monthly_expenses = sum(cashflow["monthly_expenses"].values())
     emergency_fund = assets["cash"]["emergency_fund"]
     liquid_assets = assets["cash"]["emergency_fund"] + assets["cash"]["savings_account"]
-    total_assets = portfolio["net_worth"] + portfolio.get("liabilities", {}).get("hdb_mortgage", {}).get("outstanding", 0)
+    liabilities = portfolio.get("liabilities") or {}
+    total_liabilities = (liabilities.get("hdb_mortgage") or {}).get("outstanding", 0) + (liabilities.get("credit_card") or {}).get("outstanding", 0)
+    total_assets = portfolio["net_worth"] + total_liabilities
 
     raw_scores = {
         "diversification": compute_diversification(si["asset_class_allocations"]),
@@ -142,9 +186,9 @@ def post_score(body: dict):
 @app.post("/score/explain")
 def post_score_explain(body: dict):
     vitals, wws, health_label, diagnosis, actions, critical_vitals = _run_scoring(body)
-    # TODO: add per-vital plain-language explanation field
+    explanations = get_vital_explanations(vitals, body)
     for name, v in vitals.items():
-        v["explanation"] = f"[TODO: human-readable explanation for {name}]"
+        v["explanation"] = explanations.get(name, "")
     return {
         "wws": wws,
         "health_label": health_label,
