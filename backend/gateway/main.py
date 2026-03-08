@@ -83,8 +83,13 @@ async def post_score_explain(body: dict):
 
 @app.post("/api/sandbox")
 async def post_sandbox(body: dict):
+    # Fetch portfolio so simulation service can score the modified version
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        portfolio_res = await client.get(f"{PORTFOLIO_URL}/portfolio")
+    portfolio = portfolio_res.json()
+
     async with httpx.AsyncClient(timeout=30.0) as client:
-        res = await client.post(f"{SIMULATION_URL}/sandbox", json=body)
+        res = await client.post(f"{SIMULATION_URL}/sandbox", json={"portfolio": portfolio, "adjustments": body})
     return res.json()
 
 
