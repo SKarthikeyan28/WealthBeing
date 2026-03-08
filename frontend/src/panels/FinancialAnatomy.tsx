@@ -31,7 +31,6 @@ export default function FinancialAnatomy() {
   if (assets.crypto?.total) assetItems.push({ name: 'Crypto', value: (assets.crypto as { total: number }).total })
   if (assets.bonds?.total) assetItems.push({ name: 'Bonds', value: (assets.bonds as { total: number }).total })
 
-  const totalAssets = assetItems.reduce((a, b) => a + b.value, 0)
   const mortgage = liabilities?.hdb_mortgage?.outstanding ?? 0
   const creditCard = (liabilities?.credit_card as { outstanding?: number } | undefined)?.outstanding ?? 0
 
