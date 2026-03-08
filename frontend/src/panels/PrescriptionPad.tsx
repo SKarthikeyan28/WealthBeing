@@ -15,6 +15,9 @@ export default function PrescriptionPad() {
   const persona = useStore((s) => s.persona)
   const sentiment = useStore((s) => s.sentiment)
   const setSentiment = useStore((s) => s.setSentiment)
+  const portfolio = useStore((s) => s.portfolio)
+  const wws = useStore((s) => s.wws)
+  const vitals = useStore((s) => s.vitals)
   const [inputValue, setInputValue] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [noteForRxId, setNoteForRxId] = useState<string | null>(null)
@@ -34,7 +37,12 @@ export default function PrescriptionPad() {
     setInputValue('')
     setMessages((m) => [...m, { role: 'user', content: text }])
     chatMutation.mutate(
-      { message: text, sentiment },
+      {
+        message: text,
+        sentiment,
+        portfolio: portfolio ?? undefined,
+        wws_data: wws != null ? { wws, vitals: vitals ?? {} } : undefined,
+      },
       {
         onSuccess: (data) => {
           setMessages((m) => [...m, { role: 'adviser', content: data.response }])

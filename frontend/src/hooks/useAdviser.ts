@@ -5,12 +5,19 @@ import type { Sentiment } from '../constants/theme'
 export interface AdviserChatPayload {
   message: string
   sentiment: Sentiment
+  portfolio?: unknown
+  wws_data?: unknown
 }
 
 export function useAdviserChat() {
   return useMutation<{ response: string }, Error, AdviserChatPayload>({
-    mutationFn: async ({ message, sentiment }) => {
-      const { data } = await apiClient.post<{ response: string }>('/api/adviser/chat', { message, sentiment })
+    mutationFn: async ({ message, sentiment, portfolio, wws_data }: AdviserChatPayload) => {
+      const { data } = await apiClient.post<{ response: string }>('/api/adviser/chat', {
+        message,
+        sentiment,
+        portfolio,
+        wws_data,
+      })
       return data
     },
   })
