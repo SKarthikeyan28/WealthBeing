@@ -122,8 +122,20 @@ async def post_sandbox(body: dict):
 
 @app.post("/api/sandbox/monte-carlo")
 async def post_monte_carlo(body: dict):
+    # Fetch portfolio and current WWS so simulation can compute a real wws_delta
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        portfolio_res = await client.get(f"{PORTFOLIO_URL}/portfolio")
+    portfolio = portfolio_res.json()
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        score_res = await client.post(f"{SCORING_URL}/score", json=portfolio)
+    current_wws = score_res.json().get("wws", 724)
+
     async with httpx.AsyncClient(timeout=30.0) as client:
-        res = await client.post(f"{SIMULATION_URL}/sandbox/monte-carlo", json=body)
+        res = await client.post(
+            f"{SIMULATION_URL}/sandbox/monte-carlo",
+            json={**body, "portfolio": portfolio, "current_wws": current_wws},
+        )
     return res.json()
 
 
