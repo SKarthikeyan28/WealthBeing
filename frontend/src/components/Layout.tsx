@@ -230,7 +230,7 @@ export default function Layout() {
               onClick={handleUseDemoAgain}
               className="text-[11px] text-text-muted hover:text-white transition-colors flex-shrink-0"
             >
-              Use demo again
+              Use Alex's demo data
             </button>
           </div>
 
