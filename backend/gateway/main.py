@@ -1,7 +1,7 @@
 import os
 import asyncio
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="WealthBeing API Gateway", version="1.0.0")
@@ -23,16 +23,18 @@ PORTFOLIO_URL = os.getenv("PORTFOLIO_SERVICE_URL", "http://localhost:8001")
 SCORING_URL = os.getenv("SCORING_ENGINE_URL", "http://localhost:8002")
 SIMULATION_URL = os.getenv("SIMULATION_SERVICE_URL", "http://localhost:8003")
 ADVISER_URL = os.getenv("ADVISER_SERVICE_URL", "http://localhost:8004")
+USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://localhost:8005")
 
 
 @app.get("/health")
 async def health():
-    """Fan-out health check to all 4 downstream services."""
+    """Fan-out health check to all downstream services."""
     services = {
         "portfolio": PORTFOLIO_URL,
         "scoring": SCORING_URL,
         "simulation": SIMULATION_URL,
         "adviser": ADVISER_URL,
+        "user": USER_SERVICE_URL,
     }
 
     async def check(name: str, base_url: str) -> tuple[str, str]:
@@ -50,19 +52,27 @@ async def health():
 
 
 @app.get("/api/dashboard")
-async def get_dashboard():
+async def get_dashboard(request: Request):
     """
-    Aggregates portfolio + scoring data — fetches portfolio, then scores it in parallel.
+    If Authorization header present, use user's stored portfolio; else demo.
     """
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        portfolio_res = await client.get(f"{PORTFOLIO_URL}/portfolio")
-    portfolio = portfolio_res.json()
+    portfolio = None
+    auth = request.headers.get("Authorization")
+    if auth:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.get(f"{USER_SERVICE_URL}/portfolio", headers={"Authorization": auth})
+        if res.status_code == 200:
+            portfolio = res.json()
+        elif res.status_code == 401:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if portfolio is None:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            portfolio_res = await client.get(f"{PORTFOLIO_URL}/portfolio")
+        portfolio = portfolio_res.json()
 
-    # Score is dependent on portfolio data, so run sequentially
     async with httpx.AsyncClient(timeout=10.0) as client:
         score_res = await client.post(f"{SCORING_URL}/score", json=portfolio)
     score_data = score_res.json()
-
     return {**portfolio, **score_data}
 
 
@@ -157,4 +167,64 @@ async def post_adviser_chat(body: dict):
 async def get_adviser_insights():
     async with httpx.AsyncClient(timeout=10.0) as client:
         res = await client.get(f"{ADVISER_URL}/adviser/insights")
+    return res.json()
+
+
+# ---- Auth & user portfolio ----
+@app.post("/api/auth/register")
+async def auth_register(request: Request):
+    body = await request.json()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        res = await client.post(f"{USER_SERVICE_URL}/register", json=body)
+    if res.status_code >= 400:
+        raise HTTPException(status_code=res.status_code, detail=res.json().get("detail", "Error"))
+    return res.json()
+
+
+@app.post("/api/auth/login")
+async def auth_login(request: Request):
+    body = await request.json()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        res = await client.post(f"{USER_SERVICE_URL}/login", json=body)
+    if res.status_code >= 400:
+        raise HTTPException(status_code=res.status_code, detail=res.json().get("detail", "Error"))
+    return res.json()
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    auth = request.headers.get("Authorization")
+    if not auth:
+        raise HTTPException(status_code=401, detail="Missing authorization")
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        res = await client.get(f"{USER_SERVICE_URL}/me", headers={"Authorization": auth})
+    if res.status_code >= 400:
+        raise HTTPException(status_code=res.status_code, detail=res.json().get("detail", "Error"))
+    return res.json()
+
+
+@app.get("/api/user/portfolio")
+async def user_get_portfolio(request: Request):
+    auth = request.headers.get("Authorization")
+    if not auth:
+        raise HTTPException(status_code=401, detail="Missing authorization")
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        res = await client.get(f"{USER_SERVICE_URL}/portfolio", headers={"Authorization": auth})
+    if res.status_code == 404:
+        raise HTTPException(status_code=404, detail="No portfolio saved")
+    if res.status_code >= 400:
+        raise HTTPException(status_code=res.status_code, detail=res.json().get("detail", "Error"))
+    return res.json()
+
+
+@app.put("/api/user/portfolio")
+async def user_put_portfolio(request: Request):
+    auth = request.headers.get("Authorization")
+    if not auth:
+        raise HTTPException(status_code=401, detail="Missing authorization")
+    body = await request.json()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        res = await client.put(f"{USER_SERVICE_URL}/portfolio", json=body, headers={"Authorization": auth})
+    if res.status_code >= 400:
+        raise HTTPException(status_code=res.status_code, detail=res.json().get("detail", "Error"))
     return res.json()

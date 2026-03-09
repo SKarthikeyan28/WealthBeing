@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PANEL_NAMES, colours } from '../constants/theme'
@@ -8,13 +8,13 @@ import type { ClinicalNote } from '../store'
 // ─── Nav Items ───────────────────────────────────────────────────────────────
 
 const NAV_ITEMS: { path: string; label: string; icon: string }[] = [
-  { path: '/check',        label: 'Check my health',       icon: '✎' },
-  { path: '/pulse',        label: PANEL_NAMES.pulse,        icon: '♥' },
-  { path: '/vitals',       label: PANEL_NAMES.vitals,       icon: '◈' },
+  { path: '/check', label: 'Check my health', icon: '✎' },
+  { path: '/pulse', label: PANEL_NAMES.pulse, icon: '♥' },
+  { path: '/vitals', label: PANEL_NAMES.vitals, icon: '◈' },
   { path: '/prescription', label: PANEL_NAMES.prescription, icon: 'Rx' },
-  { path: '/treatment',    label: PANEL_NAMES.treatment,    icon: '⚕' },
-  { path: '/anatomy',      label: PANEL_NAMES.anatomy,      icon: '◉' },
-  { path: '/cashflow',     label: PANEL_NAMES.cashflow,     icon: '⇄' },
+  { path: '/treatment', label: PANEL_NAMES.treatment, icon: '⚕' },
+  { path: '/anatomy', label: PANEL_NAMES.anatomy, icon: '◉' },
+  { path: '/cashflow', label: PANEL_NAMES.cashflow, icon: '⇄' },
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -23,9 +23,9 @@ function formatTimestamp(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleString('en-SG', {
     month: 'short',
-    day:   'numeric',
-    hour:  '2-digit',
-    minute:'2-digit',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
     hour12: false,
   })
 }
@@ -85,7 +85,7 @@ function ClinicalNotesSidebar({ notes }: { notes: ClinicalNote[] }) {
                   className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
                   style={{
                     background: `${colours.purple}1A`,
-                    color:      colours.purple,
+                    color: colours.purple,
                   }}
                 >
                   {vitalLabel(note.vital)}
@@ -117,12 +117,19 @@ function ClinicalNotesSidebar({ notes }: { notes: ClinicalNote[] }) {
 // ─── Layout ──────────────────────────────────────────────────────────────────
 
 export default function Layout() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { persona, setPersona, clinicalNotes, portfolio } = useStore()
+  const { user, clearAuth, persona, setPersona, clinicalNotes, portfolio } = useStore()
   const isAdviser = persona === 'ADVISER'
 
   const handleUseDemoAgain = () => {
     queryClient.refetchQueries({ queryKey: ['dashboard'] })
+  }
+
+  const handleSignOut = () => {
+    clearAuth()
+    queryClient.refetchQueries({ queryKey: ['dashboard'] })
+    navigate('/pulse', { replace: true })
   }
 
   return (
@@ -181,7 +188,7 @@ export default function Layout() {
             aria-label="View mode"
           >
             {(['CLIENT', 'ADVISER'] as const).map((p) => {
-              const active      = persona === p
+              const active = persona === p
               const activeColor = p === 'ADVISER' ? colours.purple : colours.teal
               return (
                 <button
@@ -225,26 +232,52 @@ export default function Layout() {
                 </>
               )}
             </h2>
-            <button
-              type="button"
-              onClick={handleUseDemoAgain}
-              className="text-[11px] text-text-muted hover:text-white transition-colors flex-shrink-0"
-            >
-              Use Alex's demo data
-            </button>
+            {!user && (
+              <button
+                type="button"
+                onClick={handleUseDemoAgain}
+                className="text-[11px] text-text-muted hover:text-white transition-colors flex-shrink-0"
+              >
+                Use Alex's demo data
+              </button>
+            )}
           </div>
 
-          {/* Mode badge */}
-          <span
-            className="text-[11px] font-semibold px-3 py-1 rounded-full tracking-wide transition-all duration-200"
-            style={{
-              background: isAdviser ? `${colours.purple}1A` : `${colours.teal}1A`,
-              color:      isAdviser ? colours.purple         : colours.teal,
-              border:     `1px solid ${isAdviser ? colours.purple : colours.teal}33`,
-            }}
-          >
-            {isAdviser ? '⚕ Clinical View' : '♥ My Check-Up'}
-          </span>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {user ? (
+              <>
+                <span className="text-[11px] text-text-muted truncate max-w-[120px]" title={user.email}>
+                  {user.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="text-[11px] text-text-muted hover:text-white transition-colors"
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <NavLink
+                to="/login"
+                className="text-[11px] text-text-muted hover:text-white transition-colors"
+              >
+                Log in
+              </NavLink>
+            )}
+
+            {/* Mode badge */}
+            <span
+              className="text-[11px] font-semibold px-3 py-1 rounded-full tracking-wide transition-all duration-200"
+              style={{
+                background: isAdviser ? `${colours.purple}1A` : `${colours.teal}1A`,
+                color: isAdviser ? colours.purple : colours.teal,
+                border: `1px solid ${isAdviser ? colours.purple : colours.teal}33`,
+              }}
+            >
+              {isAdviser ? '⚕ Clinical View' : '♥ My Check-Up'}
+            </span>
+          </div>
         </header>
 
         {/* Content row: panel + optional clinical notes sidebar */}
