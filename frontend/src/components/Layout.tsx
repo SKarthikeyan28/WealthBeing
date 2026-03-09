@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PANEL_NAMES, colours } from '../constants/theme'
 import { useStore } from '../store'
@@ -7,6 +8,7 @@ import type { ClinicalNote } from '../store'
 // ─── Nav Items ───────────────────────────────────────────────────────────────
 
 const NAV_ITEMS: { path: string; label: string; icon: string }[] = [
+  { path: '/check',        label: 'Check my health',       icon: '✎' },
   { path: '/pulse',        label: PANEL_NAMES.pulse,        icon: '♥' },
   { path: '/vitals',       label: PANEL_NAMES.vitals,       icon: '◈' },
   { path: '/prescription', label: PANEL_NAMES.prescription, icon: 'Rx' },
@@ -115,9 +117,13 @@ function ClinicalNotesSidebar({ notes }: { notes: ClinicalNote[] }) {
 // ─── Layout ──────────────────────────────────────────────────────────────────
 
 export default function Layout() {
-  const { persona, setPersona, clinicalNotes } = useStore()
-
+  const queryClient = useQueryClient()
+  const { persona, setPersona, clinicalNotes, portfolio } = useStore()
   const isAdviser = persona === 'ADVISER'
+
+  const handleUseDemoAgain = () => {
+    queryClient.refetchQueries({ queryKey: ['dashboard'] })
+  }
 
   return (
     <div className="flex h-screen bg-bg text-white overflow-hidden">
@@ -201,23 +207,32 @@ export default function Layout() {
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 
         {/* Header */}
-        <header className="h-14 flex-shrink-0 border-b border-border flex items-center justify-between px-6">
-          <h2 className="text-sm text-text-muted font-normal">
-            {isAdviser ? (
-              <>
-                <span style={{ color: colours.purple }} className="font-semibold">
-                  Clinical View
-                </span>
-                {' — Patient: '}
-                <span className="text-white font-semibold">Alex Johnson</span>
-              </>
-            ) : (
-              <>
-                Annual Wealth Check-Up{' — '}
-                <span className="text-white font-semibold">Alex Johnson</span>
-              </>
-            )}
-          </h2>
+        <header className="h-14 flex-shrink-0 border-b border-border flex items-center justify-between px-6 gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <h2 className="text-sm text-text-muted font-normal truncate">
+              {isAdviser ? (
+                <>
+                  <span style={{ color: colours.purple }} className="font-semibold">
+                    Clinical View
+                  </span>
+                  {' — Patient: '}
+                  <span className="text-white font-semibold">{portfolio?.patient?.name ?? 'Alex Johnson'}</span>
+                </>
+              ) : (
+                <>
+                  Annual Wealth Check-Up{' — '}
+                  <span className="text-white font-semibold">{portfolio?.patient?.name ?? 'Alex Johnson'}</span>
+                </>
+              )}
+            </h2>
+            <button
+              type="button"
+              onClick={handleUseDemoAgain}
+              className="text-[11px] text-text-muted hover:text-white transition-colors flex-shrink-0"
+            >
+              Use Alex's demo data
+            </button>
+          </div>
 
           {/* Mode badge */}
           <span

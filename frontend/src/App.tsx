@@ -9,6 +9,7 @@ import PrescriptionPad from './panels/PrescriptionPad'
 import TreatmentPlan from './panels/TreatmentPlan'
 import FinancialAnatomy from './panels/FinancialAnatomy'
 import CashFlow from './panels/CashFlow'
+import FinancialHealthForm from './components/FinancialHealthForm'
 
 export default function App() {
   const { data, isLoading, isError, error, refetch } = useDashboard()
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="treatment" element={<TreatmentPlan />} />
           <Route path="anatomy" element={<FinancialAnatomy />} />
           <Route path="cashflow" element={<CashFlow />} />
+          <Route path="check" element={<FinancialHealthForm />} />
         </Route>
       </Routes>
     </BrowserRouter>
