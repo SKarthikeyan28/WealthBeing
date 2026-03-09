@@ -47,6 +47,9 @@ services:
     environment:
       - PORT=8004
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - PORTFOLIO_SERVICE_URL=http://portfolio-service:8001
+    depends_on:
+      - portfolio-service
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
       interval: 10s
