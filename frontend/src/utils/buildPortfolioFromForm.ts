@@ -217,7 +217,7 @@ export function portfolioToFormValues(portfolio: Portfolio): FinancialHealthForm
   const mortgage = (liabilities.hdb_mortgage || {}) as { outstanding?: number }
   const creditCard = (liabilities.credit_card || {}) as { outstanding?: number }
 
-  const cpfTotal = [cpf.ordinary_account, cpf.special_account, cpf.medisave].reduce((a, b) => a + (b ?? 0), 0)
+  const cpfTotal = [cpf.ordinary_account, cpf.special_account, cpf.medisave].reduce((a: number, b) => a + (b ?? 0), 0)
   const topHolding = equities.holdings?.[0]
   const topPct = topHolding != null && typeof topHolding.pct_of_equity === 'number'
     ? Math.round(topHolding.pct_of_equity * 100)
