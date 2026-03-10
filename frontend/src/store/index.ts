@@ -27,6 +27,7 @@ export interface Portfolio {
   transactions: unknown[]
   goals: { id: string; name: string; target: number; current: number; deadline: string }[]
   scoring_inputs: Record<string, unknown>
+  user_preferences?: { emergency_months_target?: number; savings_rate_target_pct?: number }
 }
 
 export interface ClinicalNote {
@@ -52,9 +53,40 @@ export interface SandboxResult {
   diagnosis_summary: string
 }
 
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+export interface AuthUser {
+  id: string
+  email: string
+  name: string
+}
+
+const AUTH_TOKEN_KEY = 'wealthbeing_token'
+const AUTH_USER_KEY = 'wealthbeing_user'
+
+function loadStoredAuth(): { user: AuthUser | null; token: string | null } {
+  try {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY)
+    const userJson = localStorage.getItem(AUTH_USER_KEY)
+    if (token && userJson) {
+      const user = JSON.parse(userJson) as AuthUser
+      return { user, token }
+    }
+  } catch {
+    // ignore
+  }
+  return { user: null, token: null }
+}
+
 // ─── Store ───────────────────────────────────────────────────────────────────
 
 interface WealthBeingStore {
+  // Auth
+  user: AuthUser | null
+  accessToken: string | null
+  setAuth: (user: AuthUser, token: string) => void
+  clearAuth: () => void
+
   // Data
   portfolio: Portfolio | null
   wws: number | null
@@ -86,7 +118,22 @@ interface WealthBeingStore {
   setSandboxResult: (r: SandboxResult | null) => void
 }
 
+const stored = loadStoredAuth()
+
 export const useStore = create<WealthBeingStore>((set) => ({
+  user: stored.user,
+  accessToken: stored.token,
+  setAuth: (user, token) => {
+    localStorage.setItem(AUTH_TOKEN_KEY, token)
+    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user))
+    set({ user, accessToken: token })
+  },
+  clearAuth: () => {
+    localStorage.removeItem(AUTH_TOKEN_KEY)
+    localStorage.removeItem(AUTH_USER_KEY)
+    set({ user: null, accessToken: null })
+  },
+
   portfolio: null,
   wws: null,
   vitals: null,

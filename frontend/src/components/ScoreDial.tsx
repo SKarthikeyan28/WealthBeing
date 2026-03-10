@@ -25,7 +25,7 @@ const ARC = `M ${STROKE / 2} ${SIZE / 2} A ${R} ${R} 0 0 1 ${SIZE - STROKE / 2} 
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function ScoreDial({ score, max = 1000, label }: Props) {
+export default function ScoreDial({ score, max = 100, label }: Props) {
   const motionScore = useMotionValue(0)
 
   // Drives the arc fill via stroke-dashoffset

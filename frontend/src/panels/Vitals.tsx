@@ -1,7 +1,10 @@
+import { useState, useRef, useEffect } from 'react'
 import { useStore } from '../store'
 import StatusBadge from '../components/StatusBadge'
 import type { Status } from '../constants/theme'
 import { colours } from '../constants/theme'
+import { apiClient } from '../constants/api'
+import type { Portfolio } from '../store'
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Radar, Legend, ResponsiveContainer,
@@ -27,11 +30,67 @@ interface MetricCard {
   note: string
 }
 
+function MetricCardWithPopover({ m }: { m: MetricCard }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  return (
+    <div ref={wrapRef} className="rounded-xl border border-border bg-surface p-4 flex flex-col gap-2 relative">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[10px] font-semibold text-text-muted uppercase tracking-widest">
+          {m.label}
+        </p>
+        <button
+          type="button"
+          aria-label={`Info about ${m.label}`}
+          onClick={() => setOpen((o) => !o)}
+          className="shrink-0 w-5 h-5 rounded-full border border-border bg-surface text-text-muted hover:text-white hover:border-teal flex items-center justify-center text-xs font-bold transition-colors"
+        >
+          ?
+        </button>
+      </div>
+      {open && (
+        <div
+          className="absolute top-10 right-4 z-10 min-w-[200px] max-w-[280px] rounded-lg border border-border bg-bg p-3 shadow-lg text-xs text-text-muted leading-snug"
+          role="tooltip"
+        >
+          {m.note}
+        </div>
+      )}
+      <p className="text-xl font-semibold text-white leading-tight">{m.value}</p>
+      <StatusBadge status={m.status} />
+      <p className="text-xs text-text-muted leading-snug mt-0.5">{m.note}</p>
+    </div>
+  )
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function Vitals() {
   const vitals    = useStore((s) => s.vitals)
   const portfolio = useStore((s) => s.portfolio)
+  const setPortfolio = useStore((s) => s.setPortfolio)
+  const user = useStore((s) => s.user)
+
+  const userPrefsFromPortfolio = portfolio && 'user_preferences' in portfolio ? (portfolio as Portfolio).user_preferences : undefined
+  const [targetEmergencyMonths, setTargetEmergencyMonths] = useState(userPrefsFromPortfolio?.emergency_months_target ?? 6)
+  const [targetSavingsRatePct, setTargetSavingsRatePct] = useState(userPrefsFromPortfolio?.savings_rate_target_pct ?? 30)
+  const [savingTargets, setSavingTargets] = useState(false)
+  useEffect(() => {
+    const e = userPrefsFromPortfolio?.emergency_months_target ?? 6
+    const s = userPrefsFromPortfolio?.savings_rate_target_pct ?? 30
+    setTargetEmergencyMonths(e)
+    setTargetSavingsRatePct(s)
+  }, [userPrefsFromPortfolio?.emergency_months_target, userPrefsFromPortfolio?.savings_rate_target_pct])
 
   if (!vitals) {
     return (
@@ -92,19 +151,22 @@ export default function Vitals() {
   const grossAssets      = netWorth + totalLiabilities
   const debtToAssetPct   = grossAssets > 0 ? Math.round((totalLiabilities / grossAssets) * 100) : 0
 
+  const emergencyMonthsTarget = targetEmergencyMonths
+  const savingsRateTargetPct  = targetSavingsRatePct
+
   // ── 8-metric scorecard ──
   const metrics: MetricCard[] = [
     {
       label:  'Emergency fund',
       value:  `${monthsEF} months`,
-      status: monthsEF >= 6 ? 'healthy' : monthsEF >= 4 ? 'monitor' : 'critical',
-      note:   'Target: 6 months of expenses',
+      status: monthsEF >= emergencyMonthsTarget ? 'healthy' : monthsEF >= emergencyMonthsTarget * 0.65 ? 'monitor' : 'critical',
+      note:   `Target: ${emergencyMonthsTarget} months of expenses`,
     },
     {
       label:  'Savings rate',
       value:  `${savingsRatePct}%`,
-      status: savingsRatePct >= 30 ? 'healthy' : savingsRatePct >= 20 ? 'monitor' : 'critical',
-      note:   'Target rate: 30% of monthly income',
+      status: savingsRatePct >= savingsRateTargetPct ? 'healthy' : savingsRatePct >= savingsRateTargetPct * 0.65 ? 'monitor' : 'critical',
+      note:   `Target rate: ${savingsRateTargetPct}% of monthly income`,
     },
     {
       label:  'Concentration risk',
@@ -143,6 +205,23 @@ export default function Vitals() {
       note:   'Target: 15% of net worth in liquid assets',
     },
   ]
+
+  const handleSaveTargets = async () => {
+    if (!portfolio) return
+    setSavingTargets(true)
+    const updated: Portfolio = {
+      ...portfolio,
+      user_preferences: {
+        emergency_months_target: Math.max(1, Math.min(24, targetEmergencyMonths)),
+        savings_rate_target_pct: Math.max(5, Math.min(80, targetSavingsRatePct)),
+      },
+    }
+    setPortfolio(updated)
+    if (user) {
+      await apiClient.put('/api/user/portfolio', updated).catch(() => {})
+    }
+    setSavingTargets(false)
+  }
 
   return (
     <div className="h-full overflow-y-auto bg-bg p-6 space-y-6">
@@ -192,17 +271,50 @@ export default function Vitals() {
         </ResponsiveContainer>
       </div>
 
+      {/* ── Your targets (editable) ── */}
+      {portfolio && (
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <p className="text-sm font-medium text-white mb-3">Your targets</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Emergency fund target (months)</label>
+              <input
+                type="number"
+                min={1}
+                max={24}
+                value={targetEmergencyMonths}
+                onChange={(e) => setTargetEmergencyMonths(Number(e.target.value) || 6)}
+                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:border-teal"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Savings rate target (%)</label>
+              <input
+                type="number"
+                min={5}
+                max={80}
+                value={targetSavingsRatePct}
+                onChange={(e) => setTargetSavingsRatePct(Number(e.target.value) || 30)}
+                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:border-teal"
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleSaveTargets}
+            disabled={savingTargets}
+            className="mt-3 px-4 py-2 rounded-lg text-sm font-medium text-bg disabled:opacity-50"
+            style={{ backgroundColor: colours.teal }}
+          >
+            {savingTargets ? 'Saving…' : 'Save targets'}
+          </button>
+        </div>
+      )}
+
       {/* ── 8-metric scorecard ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {metrics.map((m) => (
-          <div key={m.label} className="rounded-xl border border-border bg-surface p-4 flex flex-col gap-2">
-            <p className="text-[10px] font-semibold text-text-muted uppercase tracking-widest">
-              {m.label}
-            </p>
-            <p className="text-xl font-semibold text-white leading-tight">{m.value}</p>
-            <StatusBadge status={m.status} />
-            <p className="text-xs text-text-muted leading-snug mt-0.5">{m.note}</p>
-          </div>
+          <MetricCardWithPopover key={m.label} m={m} />
         ))}
       </div>
     </div>

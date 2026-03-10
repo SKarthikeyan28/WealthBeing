@@ -1,6 +1,39 @@
 version: "3.9"
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: wealthbeing
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  user-service:
+    build: ./user-service
+    ports:
+      - "8005:8005"
+    environment:
+      - PORT=8005
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/wealthbeing
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRE_MINUTES=10080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   portfolio-service:
     build: ./portfolio-service
     ports:
@@ -66,12 +99,14 @@ services:
       - SCORING_ENGINE_URL=http://scoring-engine:8002
       - SIMULATION_SERVICE_URL=http://simulation-service:8003
       - ADVISER_SERVICE_URL=http://adviser-service:8004
+      - USER_SERVICE_URL=http://user-service:8005
       - FRONTEND_URL=${FRONTEND_URL:-}
     depends_on:
       - portfolio-service
       - scoring-engine
       - simulation-service
       - adviser-service
+      - user-service
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s

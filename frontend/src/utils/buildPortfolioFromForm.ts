@@ -3,10 +3,15 @@ import type { Portfolio } from '../store'
 export interface FinancialHealthFormValues {
   name: string
   age: number
-  location: string
 
   monthly_income: number
-  monthly_expenses_total: number
+  expense_housing: number
+  expense_food: number
+  expense_transport: number
+  expense_insurance: number
+  expense_entertainment: number
+  expense_utilities: number
+  expense_other: number
 
   emergency_fund: number
   savings_account: number
@@ -22,31 +27,23 @@ export interface FinancialHealthFormValues {
   mortgage_outstanding: number
   credit_card_outstanding: number
 
+  emergency_months_target?: number
+  savings_rate_target_pct?: number
+
   yoy_net_worth_growth?: number
   panic_sells?: number
   reactive_trades?: number
 }
 
-const DEFAULT_EXPENSE_CATEGORIES: Record<string, number> = {
-  housing: 0,
-  food: 0,
-  transport: 0,
-  insurance: 0,
-  entertainment: 0,
-  utilities: 0,
-  other: 0,
-}
-
-function buildMonthlyExpenses(total: number): Record<string, number> {
-  if (total <= 0) return { ...DEFAULT_EXPENSE_CATEGORIES }
+function buildMonthlyExpensesFromCategories(values: FinancialHealthFormValues): Record<string, number> {
   return {
-    housing: Math.round(total * 0.35),
-    food: Math.round(total * 0.2),
-    transport: Math.round(total * 0.1),
-    insurance: Math.round(total * 0.1),
-    entertainment: Math.round(total * 0.1),
-    utilities: Math.round(total * 0.05),
-    other: Math.round(total * 0.1),
+    housing: Math.max(0, values.expense_housing),
+    food: Math.max(0, values.expense_food),
+    transport: Math.max(0, values.expense_transport),
+    insurance: Math.max(0, values.expense_insurance),
+    entertainment: Math.max(0, values.expense_entertainment),
+    utilities: Math.max(0, values.expense_utilities),
+    other: Math.max(0, values.expense_other),
   }
 }
 
@@ -88,9 +85,9 @@ function buildNetWorthHistory(netWorth: number, numMonths = 7): { month: string;
 }
 
 export function buildPortfolioFromForm(values: FinancialHealthFormValues): Portfolio {
-  const expensesTotal = Math.max(0, values.monthly_expenses_total)
+  const monthlyExpenses = buildMonthlyExpensesFromCategories(values)
+  const expensesTotal = Object.values(monthlyExpenses).reduce((a, b) => a + b, 0)
   const income = Math.max(0, values.monthly_income)
-  const monthlyExpenses = buildMonthlyExpenses(expensesTotal)
   const monthlySavings = Math.max(0, income - expensesTotal)
   const savingsRate = income > 0 ? monthlySavings / income : 0
 
@@ -128,7 +125,7 @@ export function buildPortfolioFromForm(values: FinancialHealthFormValues): Portf
     patient: {
       name: values.name.trim() || 'User',
       age: Math.max(18, Math.min(120, values.age)),
-      location: values.location.trim() || 'Singapore',
+      location: 'Singapore',
     },
     net_worth: netWorth,
     net_worth_history: buildNetWorthHistory(netWorth),
@@ -164,6 +161,10 @@ export function buildPortfolioFromForm(values: FinancialHealthFormValues): Portf
       portfolio_volatility: 0.15,
       yoy_net_worth_growth: yoyGrowth,
     },
+    user_preferences: {
+      emergency_months_target: Math.max(1, Math.min(24, values.emergency_months_target ?? 6)),
+      savings_rate_target_pct: Math.max(5, Math.min(80, values.savings_rate_target_pct ?? 30)),
+    },
   }
 
   return portfolio
@@ -172,9 +173,14 @@ export function buildPortfolioFromForm(values: FinancialHealthFormValues): Portf
 export const defaultFormValues: FinancialHealthFormValues = {
   name: '',
   age: 32,
-  location: 'Singapore',
   monthly_income: 8500,
-  monthly_expenses_total: 4100,
+  expense_housing: 1800,
+  expense_food: 800,
+  expense_transport: 300,
+  expense_insurance: 350,
+  expense_entertainment: 400,
+  expense_utilities: 150,
+  expense_other: 300,
   emergency_fund: 25200,
   savings_account: 14800,
   equities_total: 145000,
@@ -188,4 +194,64 @@ export const defaultFormValues: FinancialHealthFormValues = {
   yoy_net_worth_growth: 0.05,
   panic_sells: 0,
   reactive_trades: 0,
+  emergency_months_target: 6,
+  savings_rate_target_pct: 30,
+}
+
+/** Map a saved portfolio back to form values for prefill. */
+export function portfolioToFormValues(portfolio: Portfolio): FinancialHealthFormValues {
+  const patient = portfolio.patient || {}
+  const cashflow = portfolio.cashflow || {}
+  const expenses = (cashflow.monthly_expenses || {}) as Record<string, number>
+  const assets = (portfolio.assets || {}) as Record<string, unknown>
+  const liabilities = (portfolio.liabilities || {}) as Record<string, unknown>
+  const scoringInputs = (portfolio.scoring_inputs || {}) as Record<string, unknown>
+  const prefs = portfolio.user_preferences || {}
+
+  const cash = (assets.cash || {}) as { emergency_fund?: number; savings_account?: number }
+  const equities = (assets.equities || {}) as { total?: number; holdings?: { pct_of_equity?: number }[] }
+  const cpf = (assets.cpf || {}) as { ordinary_account?: number; special_account?: number; medisave?: number }
+  const realEstate = (assets.real_estate || {}) as { equity?: number }
+  const crypto = (assets.crypto || {}) as { total?: number }
+  const bonds = (assets.bonds || {}) as { total?: number }
+  const mortgage = (liabilities.hdb_mortgage || {}) as { outstanding?: number }
+  const creditCard = (liabilities.credit_card || {}) as { outstanding?: number }
+
+  const cpfTotal = [cpf.ordinary_account, cpf.special_account, cpf.medisave].reduce((a, b) => a + (b ?? 0), 0)
+  const topHolding = equities.holdings?.[0]
+  const topPct = topHolding != null && typeof topHolding.pct_of_equity === 'number'
+    ? Math.round(topHolding.pct_of_equity * 100)
+    : 38
+
+  const transactions = (portfolio.transactions || []) as { type?: string; reactive?: boolean }[]
+  const panicSells = transactions.filter((t) => t.type === 'panic_sell').length
+  const reactiveTrades = transactions.filter((t) => t.reactive === true).length
+
+  return {
+    name: typeof patient.name === 'string' ? patient.name : '',
+    age: typeof patient.age === 'number' ? patient.age : 32,
+    monthly_income: typeof cashflow.monthly_income === 'number' ? cashflow.monthly_income : 8500,
+    expense_housing: typeof expenses.housing === 'number' ? expenses.housing : 0,
+    expense_food: typeof expenses.food === 'number' ? expenses.food : 0,
+    expense_transport: typeof expenses.transport === 'number' ? expenses.transport : 0,
+    expense_insurance: typeof expenses.insurance === 'number' ? expenses.insurance : 0,
+    expense_entertainment: typeof expenses.entertainment === 'number' ? expenses.entertainment : 0,
+    expense_utilities: typeof expenses.utilities === 'number' ? expenses.utilities : 0,
+    expense_other: typeof expenses.other === 'number' ? expenses.other : 0,
+    emergency_fund: typeof cash.emergency_fund === 'number' ? cash.emergency_fund : 0,
+    savings_account: typeof cash.savings_account === 'number' ? cash.savings_account : 0,
+    equities_total: typeof equities.total === 'number' ? equities.total : 0,
+    cpf_total: cpfTotal,
+    real_estate_equity: typeof realEstate.equity === 'number' ? realEstate.equity : 0,
+    crypto_total: typeof crypto.total === 'number' ? crypto.total : 0,
+    bonds_total: typeof bonds.total === 'number' ? bonds.total : 0,
+    top_holding_pct: topPct,
+    mortgage_outstanding: typeof mortgage.outstanding === 'number' ? mortgage.outstanding : 0,
+    credit_card_outstanding: typeof creditCard.outstanding === 'number' ? creditCard.outstanding : 0,
+    emergency_months_target: typeof prefs.emergency_months_target === 'number' ? prefs.emergency_months_target : 6,
+    savings_rate_target_pct: typeof prefs.savings_rate_target_pct === 'number' ? prefs.savings_rate_target_pct : 30,
+    yoy_net_worth_growth: typeof scoringInputs.yoy_net_worth_growth === 'number' ? scoringInputs.yoy_net_worth_growth : 0.05,
+    panic_sells: panicSells,
+    reactive_trades: reactiveTrades,
+  }
 }
