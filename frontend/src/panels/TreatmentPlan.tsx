@@ -52,14 +52,16 @@ export default function TreatmentPlan() {
   const loading = sandboxMutation.isPending || monteCarloMutation.isPending
   const error = sandboxMutation.isError || monteCarloMutation.isError
 
-  const wwsDelta = sandboxResult?.wws_delta ?? Math.round(
-    sandboxAdjustments.extra_savings / 250 +
-      sandboxAdjustments.debt_payoff / 12000 -
-      sandboxAdjustments.equity_rebalance * 0.15 +
-      sandboxAdjustments.passive_income_increase / 250
+  // Approximation based on scoring algorithm weights — used as live preview while sliders change
+  const previewDelta = Math.round(
+    Math.min(50, sandboxAdjustments.extra_savings / 23) +
+      sandboxAdjustments.debt_payoff / 3500 +
+      sandboxAdjustments.equity_rebalance * 0.375 +
+      Math.min(50, sandboxAdjustments.passive_income_increase / 23)
   )
   const projectedNetWorth12m = monteCarloResult?.projected_net_worth_12m ?? 354000
-  const displayWwsDelta = monteCarloResult?.wws_delta ?? wwsDelta
+  // After simulation: use real results. Before / after slider move: use live approximation.
+  const displayWwsDelta = monteCarloResult?.wws_delta ?? sandboxResult?.wws_delta ?? previewDelta
 
   const chartData = useMemo(() => {
     if (monteCarloResult?.trajectories) {
@@ -125,7 +127,7 @@ export default function TreatmentPlan() {
             max={2000}
             step={100}
             value={sandboxAdjustments.extra_savings}
-            onChange={(e) => setSandboxAdjustment('extra_savings', Number(e.target.value))}
+            onChange={(e) => { setSandboxAdjustment('extra_savings', Number(e.target.value)); setMonteCarloResult(null); setSandboxResult(null) }}
             className="w-full h-2 rounded-lg appearance-none bg-surface accent-teal"
           />
           <p className="text-xs text-text-muted mt-0.5">S${sandboxAdjustments.extra_savings}</p>
@@ -138,7 +140,7 @@ export default function TreatmentPlan() {
             max={50000}
             step={1000}
             value={sandboxAdjustments.debt_payoff}
-            onChange={(e) => setSandboxAdjustment('debt_payoff', Number(e.target.value))}
+            onChange={(e) => { setSandboxAdjustment('debt_payoff', Number(e.target.value)); setMonteCarloResult(null); setSandboxResult(null) }}
             className="w-full h-2 rounded-lg appearance-none bg-surface accent-teal"
           />
           <p className="text-xs text-text-muted mt-0.5">S${sandboxAdjustments.debt_payoff.toLocaleString()}</p>
@@ -151,7 +153,7 @@ export default function TreatmentPlan() {
             max={20}
             step={1}
             value={sandboxAdjustments.equity_rebalance}
-            onChange={(e) => setSandboxAdjustment('equity_rebalance', Number(e.target.value))}
+            onChange={(e) => { setSandboxAdjustment('equity_rebalance', Number(e.target.value)); setMonteCarloResult(null); setSandboxResult(null) }}
             className="w-full h-2 rounded-lg appearance-none bg-surface accent-teal"
           />
           <p className="text-xs text-text-muted mt-0.5">{sandboxAdjustments.equity_rebalance}%</p>
@@ -164,7 +166,7 @@ export default function TreatmentPlan() {
             max={1000}
             step={50}
             value={sandboxAdjustments.passive_income_increase}
-            onChange={(e) => setSandboxAdjustment('passive_income_increase', Number(e.target.value))}
+            onChange={(e) => { setSandboxAdjustment('passive_income_increase', Number(e.target.value)); setMonteCarloResult(null); setSandboxResult(null) }}
             className="w-full h-2 rounded-lg appearance-none bg-surface accent-teal"
           />
           <p className="text-xs text-text-muted mt-0.5">S${sandboxAdjustments.passive_income_increase}/mo</p>
