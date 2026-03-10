@@ -27,10 +27,14 @@ export default function Login() {
       )
       navigate('/pulse', { replace: true })
     } catch (err: unknown) {
-      const msg = err && typeof err === 'object' && 'response' in err
-        ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-        : 'Login failed'
-      setError(typeof msg === 'string' ? msg : Array.isArray(msg) ? msg[0] : 'Login failed')
+      const res = err && typeof err === 'object' && 'response' in err ? (err as { response?: { status?: number; data?: { detail?: string } } }).response : undefined
+      const detail = res?.data?.detail
+      const msg = typeof detail === 'string' ? detail : Array.isArray(detail) ? detail[0] : null
+      if (res?.status === 404) {
+        setError('API not reachable. Check that the backend is running and VITE_API_BASE_URL is set to http://localhost:8000 in frontend/.env.local')
+      } else {
+        setError(msg ?? 'Login failed')
+      }
     } finally {
       setLoading(false)
     }
