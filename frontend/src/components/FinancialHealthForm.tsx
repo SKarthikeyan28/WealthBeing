@@ -52,17 +52,49 @@ function Field({
   step?: number
   placeholder?: string
 }) {
+  const [localValue, setLocalValue] = useState(String(value))
+  const [focused, setFocused] = useState(false)
+
+  // Sync from parent when not focused
+  useEffect(() => {
+    if (!focused) setLocalValue(String(value))
+  }, [value, focused])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value
+    setLocalValue(raw)
+    if (type === 'number') {
+      const num = parseFloat(raw)
+      if (!isNaN(num)) onChange(num)
+    } else {
+      onChange(raw)
+    }
+  }
+
+  const handleBlur = () => {
+    setFocused(false)
+    if (type === 'number') {
+      const num = parseFloat(localValue)
+      const resolved = isNaN(num) ? 0 : num
+      onChange(resolved)
+      setLocalValue(String(resolved))
+    }
+  }
+
   return (
     <div>
       <label className="block text-xs text-text-muted mb-1">{label}</label>
       <div className="flex items-center gap-2">
         {unit && unit.startsWith('S$') && <span className="text-sm text-text-muted">S$</span>}
         <input
-          type={type}
+          type={type === 'number' ? 'text' : type}
+          inputMode={type === 'number' ? 'decimal' : undefined}
           min={min}
           step={step}
-          value={value}
-          onChange={(e) => (type === 'number' ? onChange(e.target.valueAsNumber || 0) : onChange(e.target.value))}
+          value={localValue}
+          onChange={handleChange}
+          onFocus={() => setFocused(true)}
+          onBlur={handleBlur}
           placeholder={placeholder}
           className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:border-teal"
         />
