@@ -104,6 +104,9 @@ function Field({
   )
 }
 
+const getDraftKey = (userId: string | null | undefined) =>
+  userId ? `wealthbeing_form_draft_${userId}` : 'wealthbeing_form_draft'
+
 export default function FinancialHealthForm() {
   const navigate = useNavigate()
   const user = useStore((s) => s.user)
@@ -114,10 +117,23 @@ export default function FinancialHealthForm() {
   const setDiagnosisSummary = useStore((s) => s.setDiagnosisSummary)
   const setPrescribedActions = useStore((s) => s.setPrescribedActions)
 
-  const [values, setValues] = useState<FinancialHealthFormValues>(defaultFormValues)
+  const [values, setValues] = useState<FinancialHealthFormValues>(() => {
+    try {
+      const saved = localStorage.getItem(getDraftKey(user?.id))
+      if (saved) return JSON.parse(saved) as FinancialHealthFormValues
+    } catch {}
+    return defaultFormValues
+  })
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [snapshots, setSnapshots] = useState<{ month: string; updated_at: string | null; net_worth: number | null; wws: number | null }[]>([])
   const submitMutation = useSubmitMyPortfolio()
+
+  // Persist form draft to localStorage on every change
+  useEffect(() => {
+    try {
+      localStorage.setItem(getDraftKey(user?.id), JSON.stringify(values))
+    } catch {}
+  }, [values, user?.id])
 
   useEffect(() => {
     if (!user) return
@@ -126,12 +142,18 @@ export default function FinancialHealthForm() {
       setSnapshots(list)
       if (list.length > 0) setSelectedMonth(list[list.length - 1].month)
     }).catch(() => {})
-    apiClient.get<import('../store').Portfolio>('/api/user/portfolio').then((res) => setValues(portfolioToFormValues(res.data))).catch(() => {})
+    // Only auto-load from server if no local draft exists for this user
+    const hasDraft = !!localStorage.getItem(getDraftKey(user.id))
+    if (!hasDraft) {
+      apiClient.get<import('../store').Portfolio>('/api/user/portfolio').then((res) => setValues(portfolioToFormValues(res.data))).catch(() => {})
+    }
   }, [user])
 
   useEffect(() => {
     if (user != null || portfolio == null) return
-    setValues(portfolioToFormValues(portfolio))
+    // Only use Zustand portfolio as fallback if no guest draft exists
+    const hasDraft = !!localStorage.getItem(getDraftKey(null))
+    if (!hasDraft) setValues(portfolioToFormValues(portfolio))
   }, [user, portfolio])
 
   const update = (key: keyof FinancialHealthFormValues, value: number | string) => {
