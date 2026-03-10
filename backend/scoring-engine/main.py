@@ -44,20 +44,20 @@ def get_status(score: float) -> str:
 
 
 def get_health_label(wws: int) -> str:
-    if wws >= 900:
+    if wws >= 90:
         return "Excellent Health"
-    if wws >= 750:
+    if wws >= 75:
         return "Good Health"
-    if wws >= 600:
+    if wws >= 60:
         return "Moderate Health"
-    if wws >= 400:
+    if wws >= 40:
         return "Requires Attention"
     return "Critical"
 
 
 def compute_wws(pillar_scores: dict[str, float]) -> int:
     total = sum(pillar_scores[p] * PILLAR_WEIGHTS[p] for p in pillar_scores)
-    return round(total * 10)
+    return round(total)  # 0–100 scale
 
 
 def get_diagnosis_summary(vitals: dict) -> str:
@@ -172,7 +172,14 @@ def health():
 
 @app.post("/score")
 def post_score(body: dict):
-    vitals, wws, health_label, diagnosis, actions, critical_vitals = _run_scoring(body)
+    try:
+        vitals, wws, health_label, diagnosis, actions, critical_vitals = _run_scoring(body)
+    except Exception as e:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Scoring failed", "error": str(e)},
+        )
     return {
         "wws": wws,
         "health_label": health_label,

@@ -4,7 +4,7 @@ SYSTEM_PROMPT_TEMPLATE = """You are WealthBeing's AI Financial Health Adviser â€
 
 PATIENT RECORD:
   Name: {patient_name}, Age: {age}
-  Wealth Health Score: {wws}/1000 ({health_label})
+  Wealth Health Score: {wws}/100 ({health_label})
   Vital Readings:
     - Portfolio Diversity:      {diversification}/100 ({div_status})
     - Liquidity Coverage:       {liquidity}/100 ({liq_status})
@@ -47,7 +47,7 @@ def build_system_prompt(portfolio: dict, wws_data: dict, sentiment: str) -> str:
     return SYSTEM_PROMPT_TEMPLATE.format(
         patient_name=patient.get("name", "Alex"),
         age=patient.get("age", 32),
-        wws=wws_data.get("wws", 724),
+        wws=wws_data.get("wws", 72),
         health_label=wws_data.get("health_label", "Moderate Health"),
         diversification=vitals.get("diversification", {}).get("score", 74),
         div_status=vitals.get("diversification", {}).get("status", "healthy"),

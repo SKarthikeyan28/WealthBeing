@@ -53,10 +53,10 @@ export default function TreatmentPlan() {
   const error = sandboxMutation.isError || monteCarloMutation.isError
 
   const wwsDelta = sandboxResult?.wws_delta ?? Math.round(
-    sandboxAdjustments.extra_savings / 25 +
-      sandboxAdjustments.debt_payoff / 1200 -
-      sandboxAdjustments.equity_rebalance * 1.5 +
-      sandboxAdjustments.passive_income_increase / 25
+    sandboxAdjustments.extra_savings / 250 +
+      sandboxAdjustments.debt_payoff / 12000 -
+      sandboxAdjustments.equity_rebalance * 0.15 +
+      sandboxAdjustments.passive_income_increase / 250
   )
   const projectedNetWorth12m = monteCarloResult?.projected_net_worth_12m ?? 354000
   const displayWwsDelta = monteCarloResult?.wws_delta ?? wwsDelta

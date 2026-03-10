@@ -21,10 +21,10 @@ export const statusColour = {
 } as const
 
 export const wwsColour = (score: number): string => {
-  if (score >= 900) return colours.teal
-  if (score >= 750) return colours.tealMuted
-  if (score >= 600) return colours.amber
-  if (score >= 400) return colours.orange
+  if (score >= 90) return colours.teal
+  if (score >= 75) return colours.tealMuted
+  if (score >= 60) return colours.amber
+  if (score >= 40) return colours.orange
   return colours.red
 }
 
@@ -56,10 +56,10 @@ export const STATUS_COLOUR = (status: Status): string => statusColour[status]
 // ─── Health Labels ───────────────────────────────────────────────────────────
 
 export const HEALTH_LABEL = (wws: number): string => {
-  if (wws >= 900) return 'Excellent Health'
-  if (wws >= 750) return 'Good Health'
-  if (wws >= 600) return 'Moderate Health'
-  if (wws >= 400) return 'Requires Attention'
+  if (wws >= 90) return 'Excellent Health'
+  if (wws >= 75) return 'Good Health'
+  if (wws >= 60) return 'Moderate Health'
+  if (wws >= 40) return 'Requires Attention'
   return 'Critical'
 }
 

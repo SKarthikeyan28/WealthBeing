@@ -1,6 +1,6 @@
 import os
 from uuid import uuid4
-from sqlalchemy import create_engine, Column, String, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, String, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from sqlalchemy.sql import func
@@ -26,6 +26,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     portfolios = relationship("Portfolio", back_populates="user", uselist=False)
+    snapshots = relationship("Snapshot", back_populates="user", cascade="all, delete-orphan")
 
 
 class Portfolio(Base):
@@ -35,6 +36,17 @@ class Portfolio(Base):
     data = Column(JSONB, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     user = relationship("User", back_populates="portfolios")
+
+
+class Snapshot(Base):
+    __tablename__ = "snapshots"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    month = Column(String(7), nullable=False)  # YYYY-MM
+    data = Column(JSONB, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    user = relationship("User", back_populates="snapshots")
+    __table_args__ = (UniqueConstraint("user_id", "month", name="uq_snapshots_user_month"),)
 
 
 def init_db():

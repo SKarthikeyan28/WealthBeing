@@ -68,11 +68,27 @@ async def get_dashboard(request: Request):
     if portfolio is None:
         async with httpx.AsyncClient(timeout=10.0) as client:
             portfolio_res = await client.get(f"{PORTFOLIO_URL}/portfolio")
+        if portfolio_res.status_code != 200:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Portfolio service error ({portfolio_res.status_code}): {portfolio_res.text[:200] if portfolio_res.text else 'empty response'}",
+            )
         portfolio = portfolio_res.json()
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        score_res = await client.post(f"{SCORING_URL}/score", json=portfolio)
-    score_data = score_res.json()
+        try:
+            score_res = await client.post(f"{SCORING_URL}/score", json=portfolio)
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=503, detail=f"Scoring engine unreachable: {e!s}")
+    if score_res.status_code != 200:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Scoring engine error ({score_res.status_code}): {score_res.text[:200] if score_res.text else 'empty response'}",
+        )
+    try:
+        score_data = score_res.json()
+    except Exception:
+        raise HTTPException(status_code=502, detail="Scoring engine returned invalid JSON")
     return {**portfolio, **score_data}
 
 
@@ -139,7 +155,7 @@ async def post_monte_carlo(body: dict):
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         score_res = await client.post(f"{SCORING_URL}/score", json=portfolio)
-    current_wws = score_res.json().get("wws", 724)
+    current_wws = score_res.json().get("wws", 72)
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         res = await client.post(
@@ -208,8 +224,12 @@ async def user_get_portfolio(request: Request):
     auth = request.headers.get("Authorization")
     if not auth:
         raise HTTPException(status_code=401, detail="Missing authorization")
+    month = request.query_params.get("month")
+    url = f"{USER_SERVICE_URL}/portfolio"
+    if month:
+        url = f"{url}?month={month}"
     async with httpx.AsyncClient(timeout=10.0) as client:
-        res = await client.get(f"{USER_SERVICE_URL}/portfolio", headers={"Authorization": auth})
+        res = await client.get(url, headers={"Authorization": auth})
     if res.status_code == 404:
         raise HTTPException(status_code=404, detail="No portfolio saved")
     if res.status_code >= 400:
@@ -225,6 +245,18 @@ async def user_put_portfolio(request: Request):
     body = await request.json()
     async with httpx.AsyncClient(timeout=10.0) as client:
         res = await client.put(f"{USER_SERVICE_URL}/portfolio", json=body, headers={"Authorization": auth})
+    if res.status_code >= 400:
+        raise HTTPException(status_code=res.status_code, detail=res.json().get("detail", "Error"))
+    return res.json()
+
+
+@app.get("/api/user/portfolio/snapshots")
+async def user_get_portfolio_snapshots(request: Request):
+    auth = request.headers.get("Authorization")
+    if not auth:
+        raise HTTPException(status_code=401, detail="Missing authorization")
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        res = await client.get(f"{USER_SERVICE_URL}/portfolio/snapshots", headers={"Authorization": auth})
     if res.status_code >= 400:
         raise HTTPException(status_code=res.status_code, detail=res.json().get("detail", "Error"))
     return res.json()

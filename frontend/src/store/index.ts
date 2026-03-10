@@ -27,6 +27,7 @@ export interface Portfolio {
   transactions: unknown[]
   goals: { id: string; name: string; target: number; current: number; deadline: string }[]
   scoring_inputs: Record<string, unknown>
+  user_preferences?: { emergency_months_target?: number; savings_rate_target_pct?: number }
 }
 
 export interface ClinicalNote {

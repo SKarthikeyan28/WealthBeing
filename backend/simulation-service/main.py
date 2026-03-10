@@ -51,7 +51,7 @@ async def post_sandbox(body: dict):
         res = await client.post(f"{SCORING_URL}/score", json=modified)
     score_data = res.json()
 
-    original_wws = body.get("current_wws", 724)
+    original_wws = body.get("current_wws", 72)
     new_wws = score_data.get("wws", original_wws)
 
     return {
@@ -83,7 +83,7 @@ async def post_monte_carlo(body: dict):
     scenario_key = body.get("scenario", "conservative")
     adjustments = body.get("adjustments", {})
     portfolio = body.get("portfolio", {"net_worth": 342000})
-    current_wws = body.get("current_wws", 724)
+    current_wws = body.get("current_wws", 72)
 
     if scenario_key not in SCENARIOS:
         raise HTTPException(status_code=400, detail=f"Unknown scenario: {scenario_key}")

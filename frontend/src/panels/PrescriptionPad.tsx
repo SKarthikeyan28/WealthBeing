@@ -20,7 +20,7 @@ export default function PrescriptionPad() {
   const [noteForRxId, setNoteForRxId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const { data: insightsData, isLoading: insightsLoading, isError: insightsError } = useInsights()
+  const { data: insightsData, isLoading: insightsLoading, isError: insightsError, error: insightsErrorDetail, refetch: refetchInsights } = useInsights()
   const insights = insightsData?.insights ?? []
   const chatMutation = useAdviserChat()
   const loading = chatMutation.isPending
@@ -55,7 +55,11 @@ export default function PrescriptionPad() {
   if (insightsError) {
     return (
       <div className="h-full flex items-center justify-center p-6">
-        <ErrorCard title="Unable to load insights" message="Check that the adviser service is running." />
+        <ErrorCard
+          title="Unable to load insights"
+          message={insightsErrorDetail?.message ?? 'Check that the gateway and adviser service are running.'}
+          onRetry={() => refetchInsights()}
+        />
       </div>
     )
   }

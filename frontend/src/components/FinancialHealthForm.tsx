@@ -1,10 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
 import { colours } from '../constants/theme'
-import { buildPortfolioFromForm, defaultFormValues, type FinancialHealthFormValues } from '../utils/buildPortfolioFromForm'
+import { apiClient } from '../constants/api'
+import { buildPortfolioFromForm, defaultFormValues, portfolioToFormValues, type FinancialHealthFormValues } from '../utils/buildPortfolioFromForm'
 import { useSubmitMyPortfolio } from '../hooks/useScore'
 import ErrorCard from './ErrorCard'
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function buildMonthOptions(): { value: string; label: string }[] {
+  const now = new Date()
+  const options: { value: string; label: string }[] = []
+  for (let i = -12; i <= 24; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    const y = d.getFullYear()
+    const m = d.getMonth()
+    const value = `${y}-${String(m + 1).padStart(2, '0')}`
+    options.push({ value, label: `${MONTH_NAMES[m]} ${y}` })
+  }
+  return options
+}
+
+const MONTH_OPTIONS = buildMonthOptions()
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -56,6 +74,8 @@ function Field({
 
 export default function FinancialHealthForm() {
   const navigate = useNavigate()
+  const user = useStore((s) => s.user)
+  const portfolio = useStore((s) => s.portfolio)
   const setPortfolio = useStore((s) => s.setPortfolio)
   const setWws = useStore((s) => s.setWws)
   const setVitals = useStore((s) => s.setVitals)
@@ -63,7 +83,24 @@ export default function FinancialHealthForm() {
   const setPrescribedActions = useStore((s) => s.setPrescribedActions)
 
   const [values, setValues] = useState<FinancialHealthFormValues>(defaultFormValues)
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [snapshots, setSnapshots] = useState<{ month: string; updated_at: string | null; net_worth: number | null; wws: number | null }[]>([])
   const submitMutation = useSubmitMyPortfolio()
+
+  useEffect(() => {
+    if (!user) return
+    apiClient.get('/api/user/portfolio/snapshots').then((snapRes: { data: { month: string; updated_at: string | null; net_worth: number | null; wws: number | null }[] }) => {
+      const list = snapRes.data || []
+      setSnapshots(list)
+      if (list.length > 0) setSelectedMonth(list[list.length - 1].month)
+    }).catch(() => {})
+    apiClient.get<import('../store').Portfolio>('/api/user/portfolio').then((res) => setValues(portfolioToFormValues(res.data))).catch(() => {})
+  }, [user])
+
+  useEffect(() => {
+    if (user != null || portfolio == null) return
+    setValues(portfolioToFormValues(portfolio))
+  }, [user, portfolio])
 
   const update = (key: keyof FinancialHealthFormValues, value: number | string) => {
     setValues((v) => ({ ...v, [key]: value }))
@@ -71,14 +108,17 @@ export default function FinancialHealthForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const portfolio = buildPortfolioFromForm(values)
-    submitMutation.mutate(portfolio, {
-      onSuccess: (scoreData) => {
-        setPortfolio(portfolio)
+    const portfolioPayload = buildPortfolioFromForm(values)
+    submitMutation.mutate(portfolioPayload, {
+      onSuccess: async (scoreData) => {
+        setPortfolio(portfolioPayload)
         setWws(scoreData.wws)
         setVitals(scoreData.vitals)
         setDiagnosisSummary(scoreData.diagnosis_summary)
         setPrescribedActions(scoreData.prescribed_actions)
+        if (user) {
+          await apiClient.put('/api/user/portfolio', { portfolio: portfolioPayload, month: selectedMonth, wws: scoreData.wws }).catch(() => {})
+        }
         navigate('/pulse', { replace: true })
       },
     })
@@ -113,20 +153,64 @@ export default function FinancialHealthForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {user && (
+          <Section title="Data for month">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-text-muted mb-1">As of month</label>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:border-teal"
+                >
+                  {MONTH_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+              {snapshots.length > 0 && (
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">Load saved month</label>
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => {
+                      const month = e.target.value
+                      setSelectedMonth(month)
+                      apiClient.get<import('../store').Portfolio>(`/api/user/portfolio?month=${encodeURIComponent(month)}`).then((res) => setValues(portfolioToFormValues(res.data))).catch(() => setValues(defaultFormValues))
+                    }}
+                    className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:border-teal"
+                  >
+                    {snapshots.map((s) => (
+                      <option key={s.month} value={s.month}>{s.month}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </Section>
+        )}
         <Section title="Profile">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Name" type="text" value={values.name} onChange={(v) => update('name', v)} placeholder="Your name" />
             <Field label="Age" value={values.age} onChange={(v) => update('age', v)} min={18} />
-            <div className="sm:col-span-2">
-              <Field label="Location" type="text" value={values.location} onChange={(v) => update('location', v)} placeholder="e.g. Singapore" />
-            </div>
           </div>
         </Section>
 
         <Section title="Cash flow">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Monthly income (S$)" unit="S$" value={values.monthly_income} onChange={(v) => update('monthly_income', v)} step={100} />
-            <Field label="Monthly expenses total (S$)" unit="S$" value={values.monthly_expenses_total} onChange={(v) => update('monthly_expenses_total', v)} step={100} />
+            <p className="text-xs text-text-muted sm:col-span-2">Monthly expenses by category</p>
+            <Field label="Housing" unit="S$" value={values.expense_housing} onChange={(v) => update('expense_housing', v)} step={50} />
+            <Field label="Food" unit="S$" value={values.expense_food} onChange={(v) => update('expense_food', v)} step={50} />
+            <Field label="Transport" unit="S$" value={values.expense_transport} onChange={(v) => update('expense_transport', v)} step={50} />
+            <Field label="Insurance" unit="S$" value={values.expense_insurance} onChange={(v) => update('expense_insurance', v)} step={50} />
+            <Field label="Entertainment" unit="S$" value={values.expense_entertainment} onChange={(v) => update('expense_entertainment', v)} step={50} />
+            <Field label="Utilities" unit="S$" value={values.expense_utilities} onChange={(v) => update('expense_utilities', v)} step={50} />
+            <Field label="Other" unit="S$" value={values.expense_other} onChange={(v) => update('expense_other', v)} step={50} />
+            <p className="text-xs text-text-muted sm:col-span-2">
+              Total expenses: S$
+              {(values.expense_housing + values.expense_food + values.expense_transport + values.expense_insurance + values.expense_entertainment + values.expense_utilities + values.expense_other).toLocaleString()}
+            </p>
           </div>
         </Section>
 

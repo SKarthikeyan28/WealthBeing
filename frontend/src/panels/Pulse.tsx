@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useStore } from '../store'
-import { wwsColour, HEALTH_LABEL } from '../constants/theme'
+import { wwsColour, HEALTH_LABEL, colours } from '../constants/theme'
 import ScoreDial from '../components/ScoreDial'
 import VitalBar from '../components/VitalBar'
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { apiClient } from '../constants/api'
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts'
 
 const VITAL_ORDER = ['diversification', 'liquidity', 'behavioral', 'growth_momentum', 'risk_reward'] as const
 
@@ -31,6 +33,17 @@ export default function Pulse() {
   const vitals           = useStore((s) => s.vitals)
   const portfolio        = useStore((s) => s.portfolio)
   const prescribedActions = useStore((s) => s.prescribedActions)
+  const user             = useStore((s) => s.user)
+
+  const [snapshotTrend, setSnapshotTrend] = useState<{ month: string; net_worth: number; wws: number }[]>([])
+
+  useEffect(() => {
+    if (!user) return
+    apiClient.get<{ month: string; net_worth: number | null; wws: number | null }[]>('/api/user/portfolio/snapshots').then((res) => {
+      const list = (res.data || []).filter((s) => s.net_worth != null || s.wws != null)
+      setSnapshotTrend(list.map((s) => ({ month: s.month, net_worth: s.net_worth ?? 0, wws: s.wws ?? 0 })))
+    }).catch(() => {})
+  }, [user])
 
   const netWorthHistory = portfolio?.net_worth_history ?? []
   const criticalCount   = vitals
@@ -82,7 +95,7 @@ export default function Pulse() {
           initial="hidden"
           animate="visible"
         >
-          <ScoreDial score={wws} label={HEALTH_LABEL(wws)} />
+          <ScoreDial score={wws} max={100} label={HEALTH_LABEL(wws)} />
         </motion.div>
 
         {/* Vital readings list — staggered entrance */}
@@ -169,6 +182,35 @@ export default function Pulse() {
                   dot={false}
                 />
               </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Snapshot trend (logged-in users with 2+ saved months) ── */}
+      {user && snapshotTrend.length >= 2 && (
+        <motion.div
+          className="rounded-xl border border-border bg-surface p-4"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.65, ease: 'easeOut' }}
+        >
+          <p className="text-sm font-medium text-white mb-3">Trend over saved months</p>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={snapshotTrend} margin={{ top: 8, right: 8, left: 8, bottom: 4 }}>
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: colours.textMuted }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="nw" tick={{ fontSize: 10, fill: colours.textMuted }} tickFormatter={(v) => `S$${Math.round(v / 1000)}k`} axisLine={false} tickLine={false} width={44} />
+                <YAxis yAxisId="wws" orientation="right" domain={[0, 100]} tick={{ fontSize: 10, fill: colours.textMuted }} axisLine={false} tickLine={false} width={28} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: colours.surface, border: `1px solid ${colours.border}`, borderRadius: 8, fontSize: 12 }}
+                  formatter={(v: number, name: string) => [name === 'net_worth' ? `S$${Number(v).toLocaleString()}` : v, name === 'net_worth' ? 'Net worth' : 'WWS']}
+                  labelFormatter={(label) => `Month: ${label}`}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} formatter={(value) => (value === 'net_worth' ? 'Net worth' : 'WWS')} />
+                <Line yAxisId="nw" type="monotone" dataKey="net_worth" stroke={colours.teal} strokeWidth={2} dot={{ r: 3 }} name="net_worth" />
+                <Line yAxisId="wws" type="monotone" dataKey="wws" stroke={colours.purple} strokeWidth={2} dot={{ r: 3 }} name="wws" />
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </motion.div>
