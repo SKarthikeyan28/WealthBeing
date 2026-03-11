@@ -95,7 +95,7 @@ export default function Pulse() {
           initial="hidden"
           animate="visible"
         >
-          <ScoreDial score={wws} max={100} label={HEALTH_LABEL(wws)} />
+          <ScoreDial score={wws} max={1000} label={HEALTH_LABEL(wws)} />
         </motion.div>
 
         {/* Vital readings list — staggered entrance */}
