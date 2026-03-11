@@ -44,20 +44,20 @@ def get_status(score: float) -> str:
 
 
 def get_health_label(wws: int) -> str:
-    if wws >= 90:
+    if wws >= 900:
         return "Excellent Health"
-    if wws >= 75:
+    if wws >= 750:
         return "Good Health"
-    if wws >= 60:
+    if wws >= 600:
         return "Moderate Health"
-    if wws >= 40:
+    if wws >= 400:
         return "Requires Attention"
     return "Critical"
 
 
 def compute_wws(pillar_scores: dict[str, float]) -> int:
     total = sum(pillar_scores[p] * PILLAR_WEIGHTS[p] for p in pillar_scores)
-    return round(total)  # 0–100 scale
+    return round(total * 10)  # 0–1000 scale
 
 
 def get_diagnosis_summary(vitals: dict) -> str:
