@@ -63,7 +63,9 @@ async def get_dashboard(request: Request):
             async with httpx.AsyncClient(timeout=10.0) as client:
                 res = await client.get(f"{USER_SERVICE_URL}/portfolio", headers={"Authorization": auth})
             if res.status_code == 200:
-                portfolio = res.json()
+                data = res.json()
+                # Unwrap if stored with the { portfolio: {...}, month, wws } envelope
+                portfolio = data.get("portfolio", data) if isinstance(data, dict) else data
             elif res.status_code == 401:
                 raise HTTPException(status_code=401, detail="Invalid or expired token")
             # non-200/non-401 → fall through to demo portfolio

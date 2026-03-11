@@ -96,13 +96,15 @@ def put_portfolio(body: dict, authorization: str | None = Header(None, alias="Au
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    # Frontend sends { portfolio: {...}, month: "...", wws: ... } — extract just the portfolio object
+    portfolio_data = body.get("portfolio", body)
     row = db.query(Portfolio).filter(Portfolio.user_id == user_id).first()
     if row:
-        row.data = body
+        row.data = portfolio_data
         db.commit()
         db.refresh(row)
     else:
-        row = Portfolio(user_id=user_id, data=body)
+        row = Portfolio(user_id=user_id, data=portfolio_data)
         db.add(row)
         db.commit()
         db.refresh(row)
