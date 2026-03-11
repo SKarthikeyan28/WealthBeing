@@ -59,12 +59,18 @@ async def get_dashboard(request: Request):
     portfolio = None
     auth = request.headers.get("Authorization")
     if auth:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            res = await client.get(f"{USER_SERVICE_URL}/portfolio", headers={"Authorization": auth})
-        if res.status_code == 200:
-            portfolio = res.json()
-        elif res.status_code == 401:
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(f"{USER_SERVICE_URL}/portfolio", headers={"Authorization": auth})
+            if res.status_code == 200:
+                portfolio = res.json()
+            elif res.status_code == 401:
+                raise HTTPException(status_code=401, detail="Invalid or expired token")
+            # non-200/non-401 → fall through to demo portfolio
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # user-service unreachable — fall through to demo portfolio
     if portfolio is None:
         async with httpx.AsyncClient(timeout=10.0) as client:
             portfolio_res = await client.get(f"{PORTFOLIO_URL}/portfolio")
